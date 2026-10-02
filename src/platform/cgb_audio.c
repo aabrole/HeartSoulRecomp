@@ -63,8 +63,14 @@ void cgb_toggle_length(u8 channel, bool8 state){
 }
 
 
+// The register holds how much to take off the longest length, which is 64
+// steps of 1/256 s, or 256 steps on the wave channel.
 void cgb_set_length(u8 channel, u8 length){
-    gb.Len[channel] = gb.LenI[channel] = length;
+    if(channel == 2){
+        gb.Len[channel] = gb.LenI[channel] = 256 - length;
+    }else{
+        gb.Len[channel] = gb.LenI[channel] = 64 - (length & 0x3F);
+    }
 }
 
 
@@ -104,11 +110,45 @@ void cgb_trigger_note(u8 channel){
         gb.ch4LFSR[0] = 0x8000;
         gb.ch4LFSR[1] = 0x80;
     }
+    // A trigger switches the channel back on after its length ran out.
+    REG_NR52 |= (1 << channel);
+}
+
+
+// The m4a engine tells this file about every register it writes. The Game Boy
+// sound engine (src/gbs.c) only writes the registers, as it would on hardware,
+// so pick up what it wrote here: a set trigger bit restarts the channel with
+// the envelope, sweep and length now in the registers. The bit is cleared
+// once seen, as it is write-only on hardware.
+static void cgb_latch_registers(void){
+    vu8 *const nrx1[4] = {&REG_NR11, &REG_NR21, &REG_NR31, &REG_NR41};
+    vu8 *const nrx2[4] = {&REG_NR12, &REG_NR22, &REG_NR32, &REG_NR42};
+    vu8 *const nrx4[4] = {&REG_NR14, &REG_NR24, &REG_NR34, &REG_NR44};
+
+    for(u8 ch = 0; ch < 4; ch++){
+        if(*nrx4[ch] & 0x80){
+            *nrx4[ch] &= 0x7F;
+            if(ch == 0) cgb_set_sweep(REG_NR10);
+            cgb_set_envelope(ch, *nrx2[ch]);
+            cgb_set_length(ch, *nrx1[ch]);
+            cgb_toggle_length(ch, (*nrx4[ch] & 0x40) != 0);
+            cgb_trigger_note(ch);
+        }
+    }
+    // The wave channel reads its volume and its samples as it plays.
+    cgb_set_envelope(2, REG_NR32);
+    cgb_set_wavram();
 }
 
 
 void cgb_audio_generate(u16 samplesPerFrame){
     float *outBuffer = gb.outBuffer;
+    // Master volume, 1 to 8 on each side. The m4a engine leaves it at 8; the
+    // Game Boy sound engine fades with it.
+    float masterL = (((REG_NR50 >> 4) & 7) + 1) / 8.0f;
+    float masterR = ((REG_NR50 & 7) + 1) / 8.0f;
+
+    cgb_latch_registers();
     switch(REG_NR11 & 0xC0){
         case 0x00:
             PU1Table = PU0;
@@ -247,8 +287,8 @@ void cgb_audio_generate(u16 samplesPerFrame){
                 if(REG_NR51 & 0x08) outputR += gb.Vol[3] * sample / 15.0f;
             }
         }
-        outBuffer[0] = outputL / 4.0f;
-        outBuffer[1] = outputR / 4.0f;
+        outBuffer[0] = outputL * masterL / 4.0f;
+        outBuffer[1] = outputR * masterR / 4.0f;
     }
 }
 

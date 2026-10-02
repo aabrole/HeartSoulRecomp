@@ -4,6 +4,7 @@
 
 #ifdef PORTABLE
 #include "cgb_audio.h"
+#include "platform.h"
 void RunMixerFrame(void);
 #endif
 
@@ -175,6 +176,10 @@ void m4aSongNumStart(u16 n, bool32 gbsEnabled)
     const struct Song *song = GetSong(n, gbsEnabled);
     const struct MusicPlayer *mplay = &mplayTable[song->ms];
 
+#ifdef PORTABLE
+    if (gAudioLog)
+        AudioLogSongStart(n, gbsEnabled, song->header, song->ms);
+#endif
     MPlayStart(mplay->info, song->header);
 }
 
@@ -186,6 +191,10 @@ void m4aSongNumStartOrChange(u16 n, bool32 gbsEnabled)
 
     if (mplay->info->songHeader != song->header)
     {
+    #ifdef PORTABLE
+        if (gAudioLog)
+            AudioLogSongStart(n, gbsEnabled, song->header, song->ms);
+    #endif
         MPlayStart(mplay->info, song->header);
     }
     else
@@ -193,6 +202,10 @@ void m4aSongNumStartOrChange(u16 n, bool32 gbsEnabled)
         if ((mplay->info->status & MUSICPLAYER_STATUS_TRACK) == 0
          || (mplay->info->status & MUSICPLAYER_STATUS_PAUSE))
         {
+        #ifdef PORTABLE
+            if (gAudioLog)
+                AudioLogSongStart(n, gbsEnabled, song->header, song->ms);
+        #endif
             MPlayStart(mplay->info, song->header);
         }
     }

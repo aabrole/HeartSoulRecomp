@@ -11,8 +11,8 @@ struct AudioCGB{
     u8 ch1SweepShift;
     u8 Vol[4];
     u8 VolI[4];
-    u8 Len[4];
-    u8 LenI[4];
+    u16 Len[4];
+    u16 LenI[4];
     bool8 LenOn[4];
     u8 EnvCounter[4];
     u8 EnvCounterI[4];
