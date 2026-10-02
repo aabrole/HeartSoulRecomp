@@ -2483,3 +2483,37 @@ static void MoveSelectionDisplayMoveEffectiveness(u32 foeEffectiveness, enum Bat
 
     BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_PP);
 }
+
+#ifdef PORTABLE
+#include "platform/dualscreen.h"
+
+// For the bottom-screen bridge: which menu a player-controlled battler is
+// waiting in, and which battler that is. In a double battle the two mons
+// choose one after the other, so at most one battler matches.
+u32 DualScreen_GetPlayerMenu(u32 *battler)
+{
+    u32 i;
+
+    for (i = 0; i < gBattlersCount && i < MAX_BATTLERS_COUNT; i++)
+    {
+        u32 menu = DS_MENU_NONE;
+
+        if (gBattlerControllerFuncs[i] == HandleInputChooseAction)
+            menu = DS_MENU_ACTION;
+        else if (gBattlerControllerFuncs[i] == HandleInputChooseMove)
+            menu = DS_MENU_MOVE;
+        else if (gBattlerControllerFuncs[i] == HandleInputChooseTarget
+              || gBattlerControllerFuncs[i] == HandleInputShowTargets
+              || gBattlerControllerFuncs[i] == HandleInputShowEntireFieldTargets)
+            menu = DS_MENU_TARGET;
+
+        if (menu != DS_MENU_NONE)
+        {
+            *battler = i;
+            return menu;
+        }
+    }
+    *battler = 0;
+    return DS_MENU_NONE;
+}
+#endif
