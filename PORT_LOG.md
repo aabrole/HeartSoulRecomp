@@ -13,6 +13,105 @@ Rules for this log:
 
 ---
 
+## 2026-10-02, session 3: Android app, audio, widescreen, bottom screen
+
+State at end of session: a debug APK builds with all four pieces in it
+(`port/build-apk.sh --data`, output
+`android/app/build/outputs/apk/debug/app-debug.apk`, about 46 MB). **It has
+never run on a device.** Everything below was verified on the Linux build
+under qemu, from screenshots, JSON dumps and WAV measurements. Nobody has
+listened to the audio yet; captures are in `port/out/audio/`.
+
+Audio, widescreen and the bottom screen were each done by a separate agent
+in its own worktree and merged into `port`. Their branches are still there:
+`port-audio`, `port-widescreen`, `port-bottomscreen`.
+
+### Android app
+
+- `android/`: Gradle project (AGP 8.5.0, Gradle 8.7 wrapper, compileSdk 34,
+  NDK 27.2.12479018, minSdk 26, `armeabi-v7a` only). SDL 2.30.7 is a git
+  submodule at `android/SDL2`: run `git submodule update --init --depth 1`
+  on a fresh clone.
+- All 403 sources compile with NDK clang. One fix was needed: clang ignores a
+  transparent union whose members differ in size
+  (`union StatChangeFlags`, `include/battle_script_commands.h`).
+  `port/clang-check.sh` reruns the check on the Mac.
+- C is compiled by CMake (`android/app/src/main/cpp/CMakeLists.txt`) with
+  `-marm`. Data is assembled in Docker by `port/android-data.sh` into
+  `build/android/game_data.o`. lld cannot apply 16-bit relocations, so
+  `port/resolve-abs-relocs.py` resolves the constant ones first.
+- `src/platform/sdl2.c`: game controller input (east button is A, south is B,
+  right trigger fast-forwards), fullscreen, save in the app's external files
+  folder. Widescreen defaults to on for Android.
+- A worktree build needs `touch .histignore` because Docker cannot see the
+  git history there.
+
+### Audio (`port-audio`)
+
+- The GBS (Game Boy) engine was never dispatched by the C player, and the CGB
+  emulation ignored register writes, which is all `src/gbs.c` does. Both
+  fixed. Mixer rewritten after Heart & Soul's HQ mixer; output saturates
+  instead of exceeding full scale.
+- Measured: title, overworld and battle music non-silent and in tune, cries
+  correlate with the source samples (r 0.88 and 0.70), no NaN, no sample over
+  1.0. Tools: `HNS_WAV`, `HNS_AUDIO_LOG`, `HNS_GBS`, `HNS_SONG`,
+  `port/wav-stats.py`, `port/wav-pitch.py`, `port/wav-find-sample.py`.
+- Judgment call to confirm by ear: no-resample voices now play 1.357x fast to
+  match the GBA build (18157 Hz mixer, 13379 Hz samples). To revert, set
+  `GBA_SAMPLE_RATE` equal to `GBA_FIXED_SAMPLE_RATE` in `src/sound_mixer.c`.
+- Not done: DC blocking on CGB channels (possible pops), tempo is 0.46% fast
+  (60 fps against 59.7275), `MP2K_event_port` is a no-op, GBS stereo untested.
+
+### Widescreen (`port-widescreen`)
+
+- `HNS_WIDESCREEN=1` renders 288x160. Heart & Soul's overworld BG maps are
+  256px wide, not 512 as session 1 assumed, so the map layers are widened to
+  64x32 tiles behind `PORTABLE` while widescreen is on (`src/fieldmap.c`,
+  `src/field_camera.c`, `src/overworld.c`, `src/event_object_movement.c`).
+- Verified: outdoors both margins show real map, battle backgrounds fill the
+  margins, and the centre 240 columns are byte-identical to the 240-wide run
+  over 286 frames. With widescreen off, 33 of 36 frames match the old build;
+  the other 3 are the intro, which a ported WIN1 fix now draws (it was the
+  black stretch noted in session 2).
+- Title, intro, main menu, bag and wall clock are 240 wide with black margins.
+- Risks: field window tiles must stay below 0x240 in widescreen (not audited
+  for every Heart & Soul window); the battle transition looks different in
+  the left and right margins; weather, followers, flash, Pokédex and region
+  map are untested. `HNS_WARP=N:G:M:X:Y` warps on a frame, because scripted
+  input could not get past the wall-clock event to leave the house.
+
+### Bottom screen (`port-bottomscreen`)
+
+- `src/platform/dualscreen_bridge.c`: snapshot of player, party and battle
+  state as JSON, published under a mutex every 4 frames; a tap driver that
+  presses the real buttons one frame at a time while watching the actual
+  cursor. `HNS_STATE_DUMP=N` and `HNS_TAP=frame:MOVE1..4|FIGHT|BAG|POKEMON|RUN`
+  test it headlessly. A tapped move was chosen correctly and won a battle.
+- Java: `BottomScreenPresentation`, `BottomScreenView`, `BottomScreenState`,
+  `DualScreenBridge`, polled every 100 ms from `HeartSoulActivity`. Does
+  nothing on a single-screen device. None of the Java has run.
+- Not ported from the reference: the SDL lifecycle patch
+  (`android/patches/sdl2-android-lifecycle.patch` in `dualscreen/main`), touch
+  bag and party screens, hiding the top-screen battle menu, game font and
+  icons, region map.
+
+### Next
+
+1. First device run on the Thor: `adb install -r` the APK, then
+   `adb logcat -s SDL libmain AndroidRuntime`. Check in order: boots to the
+   title, controls, sound, save and reload, widescreen framing, then the
+   bottom screen. If the top screen stays black only when the bottom screen is
+   active, apply the SDL lifecycle patch.
+2. Have a person listen to `port/out/audio/*.wav` and settle the no-resample
+   pitch question.
+3. Expect more null-read crashes in areas not yet exercised. Each has a clear
+   backtrace under `port/debug-headless.sh`.
+4. Widescreen follow-ups listed above, then touch bag and party screens.
+5. RG DS: untested, and it is unknown how GammaOS exposes the second screen.
+6. Release signing and a distribution decision (see `PORT_PLAN.md`).
+
+---
+
 ## 2026-10-02, session 2: native build boots and plays
 
 State at end of session: Heart & Soul builds as a native 32-bit ARM Linux
