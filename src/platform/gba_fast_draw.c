@@ -1,7 +1,12 @@
 #ifdef RENDERER_FAST_DRAW
 #include "global.h"
 #include <stdbool.h>
+#include "platform.h"
 #include "platform/dma.h"
+
+// This renderer has no widescreen support and always draws 240 columns.
+int gRenderWidth = DISPLAY_WIDTH;
+int gRenderMargin = 0;
 
 #define mosaicBGEffectX (REG_MOSAIC & 0xF)
 #define mosaicBGEffectY ((REG_MOSAIC >> 4) & 0xF)

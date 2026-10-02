@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Tiles headless screenshots into one image. Usage: port/sheet.py OUT.png FRAME [FRAME...]
-Reads port/out/shot_NNNNN.bmp; needs macOS sips for the PNG step."""
+Reads port/out/shot_NNNNN.bmp; needs macOS sips for the PNG step. The cell width
+comes from the first shot found, so 288-wide widescreen shots work too."""
 import struct, subprocess, sys, os
 out, frames = sys.argv[1], [int(x) for x in sys.argv[2:]]
 d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out')
 W, H, cols = 240, 160, 4
+for n in frames:
+    path = os.path.join(d, 'shot_%05d.bmp' % n)
+    if os.path.exists(path):
+        W = struct.unpack('<i', open(path, 'rb').read(22)[18:22])[0]
+        break
 rows = (len(frames) + cols - 1) // cols
 sheet = bytearray(W * cols * H * rows * 3)
 for i, n in enumerate(frames):
@@ -13,7 +19,10 @@ for i, n in enumerate(frames):
         continue
     b = open(path, 'rb').read()
     off = struct.unpack('<I', b[10:14])[0]
+    w = struct.unpack('<i', b[18:22])[0]
     h = struct.unpack('<i', b[22:26])[0]
+    if w != W:
+        continue  # a shot from a run at the other width
     stride = (W * 3 + 3) & ~3
     cx, cy = i % cols, i // cols
     for y in range(H):

@@ -2,6 +2,10 @@
 #include "battle_pyramid.h"
 #include "bg.h"
 #include "fieldmap.h"
+#ifdef PORTABLE
+#include "field_camera.h"
+#include "platform.h"
+#endif
 #include "fldeff.h"
 #include "fldeff_misc.h"
 #include "frontier_util.h"
@@ -480,6 +484,134 @@ u8 MapGridGetMetatileLayerTypeAt(int x, int y)
 {
     return MapGridGetMetatileAttributeAt(x, y, METATILE_ATTRIBUTE_LAYER_TYPE);
 }
+
+#ifdef PORTABLE
+// Whether the overworld map layers are currently 64 tiles wide. Sampled from
+// the renderer's margin each time the overworld sets up its BGs, so that the
+// tilemap buffers, the BG size and the field camera always agree even if
+// widescreen is switched while a map is on screen.
+static bool8 sWideOverworldBg = FALSE;
+
+void LatchWideOverworldBg(void)
+{
+    bool8 wide = (gRenderMargin != 0);
+
+    if (wide != sWideOverworldBg)
+    {
+        sWideOverworldBg = wide;
+        // Tile offsets are kept modulo the tilemap width.
+        ResetFieldCamera();
+    }
+}
+
+bool32 UseWideOverworldBg(void)
+{
+    return sWideOverworldBg;
+}
+
+u32 GetBgMapTilesX(void)
+{
+    return sWideOverworldBg ? OVERWORLD_WIDE_BG_TILES_X : 32;
+}
+
+u32 GetMapFillExtraX(void)
+{
+    return sWideOverworldBg ? OVERWORLD_WIDE_FILL_EXTRA_X : 0;
+}
+
+// The wide view draws further past the retail window than the backup map's
+// connection strips reach (MAP_OFFSET metatiles), so near a map edge the
+// outermost columns would fall back to the border block. For those cells,
+// read the connected map's layout directly, the same source the connection
+// strips are copied from. Draw path only: collision, events and scripts keep
+// using the backup map.
+static bool32 TryGetConnectionBlock(int x, int y, u16 *block)
+{
+    const struct MapConnections *connections = gMapHeader.connections;
+    const struct MapLayout *mapLayout = gMapHeader.mapLayout;
+    int ax, ay, i;
+
+    if (connections == NULL || connections->connections == NULL || mapLayout == NULL)
+        return FALSE;
+    ax = x - MAP_OFFSET;
+    ay = y - MAP_OFFSET;
+    for (i = 0; i < connections->count; i++)
+    {
+        const struct MapConnection *connection = &connections->connections[i];
+        const struct MapLayout *neighbor;
+        int nx, ny;
+
+        switch (connection->direction)
+        {
+        case CONNECTION_WEST:
+            if (ax >= 0)
+                continue;
+            neighbor = GetMapHeaderFromConnection(connection)->mapLayout;
+            if (neighbor == NULL)
+                continue;
+            nx = neighbor->width + ax;
+            ny = ay - connection->offset;
+            break;
+        case CONNECTION_EAST:
+            if (ax < mapLayout->width)
+                continue;
+            neighbor = GetMapHeaderFromConnection(connection)->mapLayout;
+            if (neighbor == NULL)
+                continue;
+            nx = ax - mapLayout->width;
+            ny = ay - connection->offset;
+            break;
+        case CONNECTION_NORTH:
+            if (ay >= 0)
+                continue;
+            neighbor = GetMapHeaderFromConnection(connection)->mapLayout;
+            if (neighbor == NULL)
+                continue;
+            nx = ax - connection->offset;
+            ny = neighbor->height + ay;
+            break;
+        case CONNECTION_SOUTH:
+            if (ay < mapLayout->height)
+                continue;
+            neighbor = GetMapHeaderFromConnection(connection)->mapLayout;
+            if (neighbor == NULL)
+                continue;
+            nx = ax - connection->offset;
+            ny = ay - mapLayout->height;
+            break;
+        default:
+            continue;
+        }
+        if (nx < 0 || nx >= neighbor->width || ny < 0 || ny >= neighbor->height)
+            continue;
+        *block = neighbor->map[nx + neighbor->width * ny];
+        return TRUE;
+    }
+    return FALSE;
+}
+
+u32 MapGridGetMetatileIdForDraw(int x, int y)
+{
+    u16 block;
+
+    if (AreCoordsWithinMapGridBounds(x, y))
+    {
+        block = gBackupMapLayout.map[x + gBackupMapLayout.width * y];
+        if (block != MAPGRID_UNDEFINED)
+            return UNPACK_METATILE(block);
+    }
+    if (TryGetConnectionBlock(x, y, &block))
+        return UNPACK_METATILE(block);
+    return GetBorderBlockAt(x, y) & MAPGRID_METATILE_ID_MASK;
+}
+
+u8 MapGridGetMetatileLayerTypeForDraw(int x, int y)
+{
+    u16 metatileId = MapGridGetMetatileIdForDraw(x, y);
+
+    return GetAttributeByMetatileIdAndMapLayout(metatileId, METATILE_ATTRIBUTE_LAYER_TYPE, gMapHeader.mapLayout->layoutVersion);
+}
+#endif
 
 void MapGridSetMetatileIdAt(int x, int y, u16 metatile)
 {
