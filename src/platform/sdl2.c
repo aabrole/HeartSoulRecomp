@@ -37,6 +37,7 @@
 #include "platform/dma.h"
 #include "platform/framedraw.h"
 #include "platform/system.h"
+#include "platform/dualscreen.h"
 
 
 SDL_Thread *mainLoopThread;
@@ -82,6 +83,8 @@ static bool sHeadless = false;
 //   HNS_SHOTS=60,300        save shot_00060.bmp and shot_00300.bmp
 //   HNS_SHOT_EVERY=N        also save a shot every N frames
 //   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
+//   HNS_STATE_DUMP=N        print the bottom-screen state JSON to stderr every N frames
+//   HNS_TAP=2700:MOVE1,2900:RUN   bottom-screen taps: MOVE1-4, FIGHT, BAG, POKEMON, RUN
 // Use with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy.
 static u16 HeadlessKeyFromName(const char *name, size_t len)
 {
@@ -225,6 +228,7 @@ static int RunHeadless(unsigned long frameCount)
 #endif
         ENTER_VBLANK();
         MainLoop();
+        DualScreen_HeadlessFrame(frame);
         VDraw(sdlTexture);
         RunDMAsAndVBlank();
         AudioUpdate();
@@ -365,6 +369,7 @@ int main(int argc, char **argv)
                 //run game logic, draw frame and process DMAs and vblank
                 ENTER_VBLANK(); //you must be in VBlank before running a game tick
                 MainLoop();
+                DualScreen_FrameHook();
                 if (!isGameStepDrawn)
                 {
                     VDraw(sdlTexture);
@@ -720,7 +725,7 @@ u16 Platform_GetKeyInput(void)
     return (gamepadKeys != 0) ? gamepadKeys : keys;
 #endif
 
-    return keys | sPadKeys | PadStickKeys();
+    return keys | sPadKeys | PadStickKeys() | DualScreen_ConsumeInjectedKeys();
 }
 
 void VDraw(SDL_Texture *texture)
