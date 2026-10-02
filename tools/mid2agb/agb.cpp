@@ -45,6 +45,7 @@ static int s_memaccParam2;
 
 void PrintAgbHeader()
 {
+    std::fprintf(g_outputFile, "\t.include \"asm/macros/bit_width.inc\"\n\n");
     std::fprintf(g_outputFile, "\t.include \"MPlayDef.s\"\n\n");
     std::fprintf(g_outputFile, "\t.equ\t%s_grp, voicegroup%s\n", g_asmLabel.c_str(), g_voiceGroup.c_str());
     std::fprintf(g_outputFile, "\t.equ\t%s_pri, %u\n", g_asmLabel.c_str(), g_priority);
@@ -137,7 +138,17 @@ void PrintWord(const char *format, ...)
 {
     std::va_list args;
     va_start(args, format);
-    std::fprintf(g_outputFile, "\t .word\t");
+    std::fprintf(g_outputFile, "\t .int\t");
+    std::vfprintf(g_outputFile, format, args);
+    std::fprintf(g_outputFile, "\n");
+    va_end(args);
+}
+
+void PrintQuad(const char *format, ...)
+{
+    std::va_list args;
+    va_start(args, format);
+    std::fprintf(g_outputFile, "\t ptrvalue\t");
     std::vfprintf(g_outputFile, format, args);
     std::fprintf(g_outputFile, "\n");
     va_end(args);
@@ -417,7 +428,7 @@ void PrintControllerOp(const Event& event)
 
 void PrintAgbTrack(std::vector<Event>& events)
 {
-    std::fprintf(g_outputFile, "\n@**************** Track %u (Midi-Chn.%u) ****************@\n\n", g_agbTrack, g_midiChan + 1);
+    //std::fprintf(g_outputFile, "\n@**************** Track %u (Midi-Chn.%u) ****************@\n\n", g_agbTrack, g_midiChan + 1);
     std::fprintf(g_outputFile, "%s_%u:\n", g_asmLabel.c_str(), g_agbTrack);
 
     int wholeNoteCount = 0;
@@ -457,7 +468,7 @@ void PrintAgbTrack(std::vector<Event>& events)
         }
 
         if (event.type == EventType::WholeNoteMark || event.type == EventType::Pattern)
-            std::fprintf(g_outputFile, "@ %03d   ----------------------------------------\n", wholeNoteCount++);
+            wholeNoteCount++; //std::fprintf(g_outputFile, "@ %03d   ----------------------------------------\n", wholeNoteCount++);
 
         switch (event.type)
         {
@@ -472,12 +483,12 @@ void PrintAgbTrack(std::vector<Event>& events)
             break;
         case EventType::LoopEnd:
             PrintByte("GOTO");
-            PrintWord("%s_%u_B%u", g_asmLabel.c_str(), g_agbTrack, loopEndBlockNum);
+            PrintQuad("%s_%u_B%u", g_asmLabel.c_str(), g_agbTrack, loopEndBlockNum);
             PrintSeqLoopLabel(event);
             break;
         case EventType::LoopEndBegin:
             PrintByte("GOTO");
-            PrintWord("%s_%u_B%u", g_asmLabel.c_str(), g_agbTrack, loopEndBlockNum);
+            PrintQuad("%s_%u_B%u", g_asmLabel.c_str(), g_agbTrack, loopEndBlockNum);
             PrintSeqLoopLabel(event);
             loopEndBlockNum = s_blockNum;
             break;
@@ -496,7 +507,7 @@ void PrintAgbTrack(std::vector<Event>& events)
             break;
         case EventType::Pattern:
             PrintByte("PATT");
-            PrintWord("%s_%u_%03lu", g_asmLabel.c_str(), g_agbTrack, event.param2);
+            PrintQuad("%s_%u_%03lu", g_asmLabel.c_str(), g_agbTrack, event.param2);
 
             while (!IsPatternBoundary(events[i + 1].type))
                 i++;
@@ -527,7 +538,7 @@ void PrintAgbTrack(std::vector<Event>& events)
 
 void PrintAgbTrackLoop(std::vector<Event>& events, int trackLoops)
 {
-    std::fprintf(g_outputFile, "\n@**************** Track %u (Midi-Chn.%u) ****************@\n\n", g_agbTrack, g_midiChan + 1);
+    std::fprintf(g_outputFile, "\n/**************** Track %u (Midi-Chn.%u) ****************/\n\n", g_agbTrack, g_midiChan + 1);
     std::fprintf(g_outputFile, "%s_%u:\n", g_asmLabel.c_str(), g_agbTrack);
     int wholeNoteCount = 0;
 
@@ -569,7 +580,7 @@ void PrintAgbTrackLoop(std::vector<Event>& events, int trackLoops)
 
             // added `&& (i % 2 == 0)` to cut down on excess comments created in the .s file
             if ((event.type == EventType::WholeNoteMark || event.type == EventType::Pattern) && (i % 2 == 0))
-                std::fprintf(g_outputFile, "@ %03d   ----------------------------------------\n", wholeNoteCount++);
+                std::fprintf(g_outputFile, "/* %03d   ---------------------------------------- */\n", wholeNoteCount++);
 
             switch (event.type)
             {
@@ -640,20 +651,20 @@ void PrintAgbFooter()
 {
     int trackCount = g_agbTrack - 1;
 
-    std::fprintf(g_outputFile, "\n@******************************************************@\n");
+    //std::fprintf(g_outputFile, "\n@******************************************************@\n");
     std::fprintf(g_outputFile, "\t.align\t2\n");
     std::fprintf(g_outputFile, "\n%s:\n", g_asmLabel.c_str());
-    std::fprintf(g_outputFile, "\t.byte\t%u\t@ NumTrks\n", trackCount);
-    std::fprintf(g_outputFile, "\t.byte\t%u\t@ NumBlks\n", 0);
-    std::fprintf(g_outputFile, "\t.byte\t%s_pri\t@ Priority\n", g_asmLabel.c_str());
-    std::fprintf(g_outputFile, "\t.byte\t%s_rev\t@ Reverb.\n", g_asmLabel.c_str());
-    std::fprintf(g_outputFile, "\n");
-    std::fprintf(g_outputFile, "\t.word\t%s_grp\n", g_asmLabel.c_str());
+    std::fprintf(g_outputFile, "\t.byte\t%u\n", trackCount);
+    std::fprintf(g_outputFile, "\t.byte\t%u\n", 0);
+    std::fprintf(g_outputFile, "\t.byte\t%s_pri\n", g_asmLabel.c_str());
+    std::fprintf(g_outputFile, "\t.byte\t%s_rev\n", g_asmLabel.c_str());
+    std::fprintf(g_outputFile, "space64 4\n");
+    std::fprintf(g_outputFile, "\tptrvalue\t%s_grp\n", g_asmLabel.c_str());
     std::fprintf(g_outputFile, "\n");
 
     // track pointers
     for (int i = 1; i <= trackCount; i++)
-        std::fprintf(g_outputFile, "\t.word\t%s_%u\n", g_asmLabel.c_str(), i);
+        std::fprintf(g_outputFile, "\tptrvalue\t%s_%u\n", g_asmLabel.c_str(), i);
 
     std::fprintf(g_outputFile, "\n\t.end\n");
 }

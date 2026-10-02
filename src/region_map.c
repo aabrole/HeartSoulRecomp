@@ -2924,6 +2924,10 @@ static void TryCreateRedOutlineFlyDestIcons(void)
 // Flickers fly destination icon color (by hiding the fly icon sprite) if the cursor is currently on it
 static void SpriteCB_FlyDestIcon(struct Sprite *sprite)
 {
+#ifdef UBFIX
+    if (sFlyMap != NULL)
+#endif
+    {
     if (sFlyMap->regionMap.mapSecId == sprite->sIconMapSec)
     {
         if (++sprite->sFlickerTimer > 16)
@@ -2936,6 +2940,7 @@ static void SpriteCB_FlyDestIcon(struct Sprite *sprite)
     {
         sprite->sFlickerTimer = 16;
         sprite->invisible = FALSE;
+    }
     }
 }
 

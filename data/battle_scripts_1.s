@@ -20,7 +20,7 @@
 	.include "asm/macros/battle_script.inc"
 	.include "constants/constants.inc"
 
-	.section script_data, "aw", %progbits
+	.section script_data, "aw"
 
 BattleScript_TryRevertWeatherform:
     setbyte gEffectBattler, 0

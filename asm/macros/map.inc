@@ -13,14 +13,14 @@
 	@ Defines a map script. 'type' is any MAP_SCRIPT_* constant (see include/constants/map_scripts.h)
 	.macro map_script type:req, script:req
 	.byte \type
-	.4byte \script
+	ptrvalue \script
 	.endm
 
 	@ Defines an entry in a map script table (for either ON_WARP_INTO_MAP_TABLE or ON_FRAME_TABLE)
 	.macro map_script_2 var:req, compare:req, script:req
 	.2byte \var
 	.2byte \compare
-	.4byte \script
+	ptrvalue \script
 	.endm
 
 	@ Defines an object event template for map data, to be used by a normal object. Mirrors the struct layout of ObjectEventTemplate in include/global.fieldmap.h
@@ -28,6 +28,7 @@
 	.byte \index
 	.2byte \gfx
 	.byte OBJ_KIND_NORMAL
+	.space 1  @ Padding
 	.2byte \x, \y
 	.byte \elevation
 	.byte \movement_type
@@ -39,9 +40,10 @@
 	.space 1  @ Padding
 	.2byte \trainer_type
 	.2byte \sight_radius_tree_etc
-	.4byte \script
+	ptrvalue \script
 	.2byte \event_flag
 	.space 2  @ Padding
+	space64 4
 	inc _num_npcs
 	.endm
 
@@ -50,6 +52,7 @@
 	.byte \index
 	.2byte \gfx
 	.byte OBJ_KIND_CLONE
+	.space 1  @ Padding
 	.2byte \x, \y
 	.byte \target_local_id
 	.space 3  @ Padding
@@ -77,7 +80,8 @@
 	.2byte \var
 	.2byte \varValue
 	.space 2  @ Padding
-	.4byte \script
+	space64 4
+	ptrvalue \script
 	inc _num_traps
 	.endm
 
@@ -94,7 +98,7 @@
 	.byte \elevation
 	.byte \kind
 	.space 2  @ Padding
-	.4byte \arg6
+	ptrvalue \arg6
 	inc _num_signs
 	.endm
 
@@ -105,9 +109,6 @@
 
 	@ Defines a background hidden item event for map data
 	.macro bg_hidden_item_event x:req, y:req, elevation:req, item:req, flag:req, quantity=1, underfoot=FALSE
-	.if \flag < FLAG_HIDDEN_ITEMS_START
-	.error "Hidden Item flag \flag is too small. Must be >= FLAG_HIDDEN_ITEMS_START."
-	.endif
 	.if \item >= (1 << 12)
 	.error "quantity \quantity too large"
 	.endif
@@ -125,7 +126,8 @@
 	@ Defines the table of event data for a map. Mirrors the struct layout of MapEvents in include/global.fieldmap.h
 	.macro map_events npcs:req, warps:req, traps:req, signs:req
 	.byte _num_npcs, _num_warps, _num_traps, _num_signs
-	.4byte \npcs, \warps, \traps, \signs
+    space64 4
+	ptrvalue \npcs, \warps, \traps, \signs
 	reset_map_events
 	.endm
 
@@ -154,9 +156,11 @@
 	.macro connection direction:req, offset:req, map:req
 	.byte connection_\direction
 	.space 3  @ Padding
-	.4byte \offset
+	space64 4
+	ptrvalue \offset
 	map \map
 	.space 2  @ Padding
+	space64 4
 	.endm
 
 	@ Defines the flags for a map header. Mirrors the layout of the bitfield in struct MapHeader in include/global.fieldmap.h

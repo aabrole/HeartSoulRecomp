@@ -5,7 +5,7 @@
 	.include "asm/macros/contest_ai_script.inc"
 	.include "constants/constants.inc"
 
-	.section script_data, "aw", %progbits
+	.section script_data, "aw"
 
 	enum_start
 	enum MON_1
@@ -15,38 +15,38 @@
 
 	.align 2
 gContestAI_ScriptsTable::
-	.4byte AI_CheckBadMove      @ CONTEST_AI_CHECK_BAD_MOVE
-	.4byte AI_CheckCombo        @ CONTEST_AI_CHECK_COMBO
-	.4byte AI_CheckBoring       @ CONTEST_AI_CHECK_BORING
-	.4byte AI_CheckExcitement   @ CONTEST_AI_CHECK_EXCITEMENT
-	.4byte AI_CheckOrder        @ CONTEST_AI_CHECK_ORDER
-	.4byte AI_CheckGoodMove     @ CONTEST_AI_CHECK_GOOD_MOVE
-	.4byte AI_Erratic           @ CONTEST_AI_ERRATIC
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_1
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_2
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_3
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_4
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_5
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_6
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_7
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_8
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_9
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_10
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_11
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_12
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_13
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_14
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_15
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_16
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_17
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_18
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_19
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_20
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_21
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_22
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_23
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_24
-	.4byte AI_Nothing           @ CONTEST_AI_DUMMY_25
+	ptrvalue AI_CheckBadMove      @ CONTEST_AI_CHECK_BAD_MOVE
+	ptrvalue AI_CheckCombo        @ CONTEST_AI_CHECK_COMBO
+	ptrvalue AI_CheckBoring       @ CONTEST_AI_CHECK_BORING
+	ptrvalue AI_CheckExcitement   @ CONTEST_AI_CHECK_EXCITEMENT
+	ptrvalue AI_CheckOrder        @ CONTEST_AI_CHECK_ORDER
+	ptrvalue AI_CheckGoodMove     @ CONTEST_AI_CHECK_GOOD_MOVE
+	ptrvalue AI_Erratic           @ CONTEST_AI_ERRATIC
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_1
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_2
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_3
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_4
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_5
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_6
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_7
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_8
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_9
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_10
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_11
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_12
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_13
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_14
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_15
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_16
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_17
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_18
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_19
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_20
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_21
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_22
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_23
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_24
+	ptrvalue AI_Nothing           @ CONTEST_AI_DUMMY_25
 
 
 @ Unused. Encourages improving condition on the 1st appeal, or startling mons if the users turn is later

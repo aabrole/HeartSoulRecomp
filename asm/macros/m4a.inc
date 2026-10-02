@@ -1,7 +1,8 @@
 	.macro song label:req, music_player:req, unknown:req
-	.4byte \label
+	ptrvalue \label
 	.2byte \music_player
 	.2byte \unknown
+	space64 4
 	.endm
 
 	.macro song_gbs song_id:req, label:req, music_player:req, unknown:req
@@ -12,12 +13,19 @@
 	.endm
 
 	.macro music_player info_struct:req, track_struct:req, num_tracks:req, unknown:req
-	.4byte \info_struct
-	.4byte \track_struct
+	ptrvalue \info_struct
+	ptrvalue \track_struct
 	.byte \num_tracks
 	.space 1  @ Padding
 	.2byte \unknown
+	space64 4  /* Padding*/
 	.endm
+
+	.if VER_64BIT == 1
+	.equiv voice_size, 0x18
+	.else
+	.equiv voice_size, 0xC
+	.endif
 
 	.macro voice_group label:req, starting_note
 	.align 2
@@ -25,7 +33,7 @@
 		.global voicegroup_\label
 		voicegroup_\label:
 	.else
-		.set voicegroup_\label, . - \starting_note * 0xC
+		.set voicegroup_\label, . - \starting_note * voice_size
 	.endif
 	.endm
 

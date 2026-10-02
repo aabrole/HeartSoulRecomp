@@ -110,8 +110,8 @@ static void Task_MixingRecordsRecv(u8);
 static void Task_SendPacket(u8);
 static void Task_CopyReceiveBuffer(u8);
 static void Task_SendPacket_SwitchToReceive(u8);
-static void *LoadPtrFromTaskData(const u16 *);
-static void StorePtrInTaskData(void *, u16 *);
+static void *LoadPtrFromTaskData(void **);
+static void StorePtrInTaskData(void *, void **);
 static u8 GetMultiplayerId_(void);
 static void *GetPlayerRecvBuffer(u8);
 static void ReceiveOldManData(OldMan *, size_t, u8);
@@ -378,7 +378,7 @@ static void Task_RecordMixing_Main(u8 taskId)
 #undef tSoundTaskId
 
 // Task data for Task_MixingRecordsRecv and subsequent tasks
-#define tSentRecord    data[2] // Used to store a ptr, so data[2] and data[3]
+#define tSentRecord    ptr.genericPtr[0]
 #define tNumChunksSent data[4]
 #define tMultiplayerId data[5]
 #define tCopyTaskId    data[10]
@@ -386,7 +386,7 @@ static void Task_RecordMixing_Main(u8 taskId)
 // Task data for Task_CopyReceiveBuffer
 #define tParentTaskId     data[0]
 #define tNumChunksRecv(i) data[1 + (i)] // Number of chunks of the record received per player
-#define tRecvRecords      data[5] // Used to store a ptr, so data[5] and data[6]
+#define tRecvRecords      ptr.genericPtr[0]
 
 static void Task_MixingRecordsRecv(u8 taskId)
 {
@@ -462,20 +462,20 @@ static void Task_MixingRecordsRecv(u8 taskId)
             task->func = Task_SendPacket;
             if (Link_AnyPartnersPlayingRubyOrSapphire())
             {
-                StorePtrInTaskData(sSentRecord, (u16*) &task->tSentRecord);
+                StorePtrInTaskData(sSentRecord, &task->tSentRecord);
                 subTaskId = CreateTask(Task_CopyReceiveBuffer, 80);
                 task->tCopyTaskId = subTaskId;
                 gTasks[subTaskId].tParentTaskId = taskId;
-                StorePtrInTaskData(sReceivedRecords, (u16*) &gTasks[subTaskId].tRecvRecords);
+                StorePtrInTaskData(sReceivedRecords, &gTasks[subTaskId].tRecvRecords);
                 sRecordStructSize = sizeof(struct PlayerRecordRS);
             }
             else
             {
-                StorePtrInTaskData(sSentRecord, (u16*)  &task->tSentRecord);
+                StorePtrInTaskData(sSentRecord, &task->tSentRecord);
                 subTaskId = CreateTask(Task_CopyReceiveBuffer, 80);
                 task->tCopyTaskId = subTaskId;
                 gTasks[subTaskId].tParentTaskId = taskId;
-                StorePtrInTaskData(sReceivedRecords,(u16*) &gTasks[subTaskId].tRecvRecords);
+                StorePtrInTaskData(sReceivedRecords, &gTasks[subTaskId].tRecvRecords);
                 sRecordStructSize = sizeof(struct PlayerRecordEmerald);
             }
         }
@@ -497,7 +497,7 @@ static void Task_SendPacket(u8 taskId)
     {
     case 0: // Copy record data chunk to send buffer
         {
-            void *recordData = LoadPtrFromTaskData((u16*)&task->tSentRecord) + task->tNumChunksSent * BUFFER_CHUNK_SIZE;
+            void *recordData = LoadPtrFromTaskData(&task->tSentRecord) + task->tNumChunksSent * BUFFER_CHUNK_SIZE;
 
             memcpy(gBlockSendBuffer, recordData, BUFFER_CHUNK_SIZE);
             task->tState++;
@@ -539,7 +539,7 @@ static void Task_CopyReceiveBuffer(u8 taskId)
         {
             if ((status >> i) & 1)
             {
-                void *dest = LoadPtrFromTaskData((u16*) &task->tRecvRecords) + task->tNumChunksRecv(i) * BUFFER_CHUNK_SIZE + sRecordStructSize * i;
+                void *dest = LoadPtrFromTaskData(&task->tRecvRecords) + task->tNumChunksRecv(i) * BUFFER_CHUNK_SIZE + sRecordStructSize * i;
                 void *src = GetPlayerRecvBuffer(i);
                 if ((task->tNumChunksRecv(i) + 1) * BUFFER_CHUNK_SIZE > sRecordStructSize)
                     memcpy(dest, src, sRecordStructSize - task->tNumChunksRecv(i) * BUFFER_CHUNK_SIZE);
@@ -582,15 +582,14 @@ static void Task_SendPacket_SwitchToReceive(u8 taskId)
     sReadyToReceive = TRUE;
 }
 
-static void *LoadPtrFromTaskData(const u16 *asShort)
+static void *LoadPtrFromTaskData(void **ptrPtr)
 {
-    return (void *)(asShort[0] | (asShort[1] << 16));
+    return (void *)(*ptrPtr);
 }
 
-static void StorePtrInTaskData(void *records, u16 *asShort)
+static void StorePtrInTaskData(void *records, void **ptrPtr)
 {
-    asShort[0] = (u32)records;
-    asShort[1] = ((u32)records >> 16);
+    *ptrPtr = records;
 }
 
 static u8 GetMultiplayerId_(void)

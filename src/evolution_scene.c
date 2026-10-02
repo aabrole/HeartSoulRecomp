@@ -760,14 +760,18 @@ static void Task_EvolutionScene(u8 taskId)
         }
         break;
     case EVOSTATE_RESTORE_SCREEN: // stop music, return screen to pre-fade state
+#ifndef PORTABLE
         if (IsSEPlaying())
         {
+#endif
             m4aMPlayAllStop();
             memcpy(&gPlttBufferUnfaded[BG_PLTT_ID(2)], sEvoStructPtr->savedPalette, sizeof(sEvoStructPtr->savedPalette));
             RestoreBgAfterAnim();
             BeginNormalPaletteFade(0x1C, 0, 0x10, 0, RGB_BLACK);
             gTasks[taskId].tState++;
+#ifndef PORTABLE
         }
+#endif
         break;
     case EVOSTATE_EVO_MON_ANIM:
         if (!gPaletteFade.active)
@@ -777,7 +781,9 @@ static void Task_EvolutionScene(u8 taskId)
         }
         break;
     case EVOSTATE_SET_MON_EVOLVED:
+#ifndef PORTABLE
         if (IsCryFinished())
+#endif
         {
             u32 zero = 0;
             StringExpandPlaceholders(gStringVar4, gText_CongratsPkmnEvolved);

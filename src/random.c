@@ -1,8 +1,6 @@
 #include "global.h"
 #include "random.h"
-#if MODERN
-#include <alloca.h>
-#endif
+#include "malloc.h"
 
 // IWRAM common
 COMMON_DATA rng_value_t gRngValue = {0};
@@ -27,6 +25,7 @@ static void SFC32_Seed(struct Sfc32State *state, u32 seed, u8 stream)
     }
 }
 
+#ifndef PORTABLE
 /*This ASM implementation uses some shortcuts and is generally faster on the GBA.
 * It's not necessarily faster if inlined, or on other platforms.
 * In addition, it's extremely non-portable. */
@@ -57,6 +56,12 @@ u32 NAKED Random32(void)
     .ltorg"
     );
 }
+#else
+u32 Random32(void)
+{
+    return _SFC32_Next_Stream(&gRng2Value, STREAM2);
+}
+#endif
 
 u32 Random2_32(void)
 {
@@ -131,7 +136,7 @@ void Shuffle32(void *data_, size_t n)
 
 void ShuffleN(void *data, size_t n, size_t size)
 {
-    void *tmp = alloca(size);
+    void *tmp = Alloc(size);
     LOOP_RANDOM_START;
     --n;
 

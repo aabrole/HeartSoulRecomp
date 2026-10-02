@@ -1152,8 +1152,14 @@ static bool8 SaveErrorTimer(void)
 
 static u8 SaveConfirmSaveCallback(void)
 {
-    ClearStdWindowAndFrame(GetStartMenuWindowId(), FALSE);
-    RemoveStartMenuWindow();
+#ifdef UBFIX //UB: If this function isn't called trough the start menu it will attempt to clear window 255 (WINDOW_NONE)
+    if (GetStartMenuWindowId() != WINDOW_NONE)
+#endif
+    {
+        ClearStdWindowAndFrame(GetStartMenuWindowId(), FALSE);
+        RemoveStartMenuWindow();
+    }
+
     ShowSaveInfoWindow();
 
     if (CurrentBattlePyramidLocation() != PYRAMID_LOCATION_NONE)
@@ -1261,7 +1267,12 @@ static u8 SaveOverwriteInputCallback(void)
 
 static u8 SaveSavingMessageCallback(void)
 {
+#ifdef PORTABLE
+    sSavingComplete = TRUE;
+    sSaveDialogCallback = SaveDoSaveCallback;
+#else
     ShowSaveMessage(gText_SavingDontTurnOff, SaveDoSaveCallback);
+#endif
     return SAVE_IN_PROGRESS;
 }
 

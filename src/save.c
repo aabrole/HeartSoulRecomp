@@ -1,4 +1,5 @@
 #include "global.h"
+#include "platform.h"
 #include "agb_flash.h"
 #include "gba/flash_internal.h"
 #include "fieldmap.h"
@@ -93,8 +94,10 @@ STATIC_ASSERT(sizeof(struct SaveBlock3) <= SAVE_BLOCK_3_CHUNK_SIZE * NUM_SECTORS
 // migration rather than another field.
 STATIC_ASSERT(sizeof(struct ChallengeSettings) == 32, ChallengeSettingsLayoutPinned);
 STATIC_ASSERT(sizeof(struct SaveBlock2) <= SECTOR_DATA_SIZE, SaveBlock2FreeSpace);
+#ifndef PORTABLE
 STATIC_ASSERT(sizeof(struct SaveBlock1) <= SECTOR_DATA_SIZE * (SECTOR_ID_SAVEBLOCK1_END - SECTOR_ID_SAVEBLOCK1_START + 1), SaveBlock1FreeSpace);
 STATIC_ASSERT(sizeof(struct PokemonStorage) <= SECTOR_DATA_SIZE * (SECTOR_ID_PKMN_STORAGE_END - SECTOR_ID_PKMN_STORAGE_START + 1), PokemonStorageFreeSpace);
+#endif
 
 COMMON_DATA u16 gLastWrittenSector = 0;
 COMMON_DATA u32 gLastSaveCounter = 0;
@@ -782,6 +785,11 @@ u8 HandleSavingData(u8 saveType)
         WriteSaveSectorOrSlot(FULL_SAVE_SLOT, gRamSaveSectorLocations);
         break;
     }
+
+#ifdef PORTABLE
+	Platform_StoreSaveFile();
+#endif
+
     gTrainerHillVBlankCounter = backupVar;
     return 0;
 }
@@ -797,6 +805,9 @@ u8 TrySavingData(u8 saveType)
     HandleSavingData(saveType);
     if (!gDamagedSaveSectors)
     {
+#ifdef PORTABLE
+		Platform_StoreSaveFile();
+#endif
         gSaveAttemptStatus = SAVE_STATUS_OK;
         return SAVE_STATUS_OK;
     }

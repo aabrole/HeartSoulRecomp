@@ -141,26 +141,27 @@ string generate_map_header_text(Json map_data, Json layouts_data) {
     ostringstream text;
 
     string mapName = json_to_string(map_data, "name");
+	//text << ".include \"asm/macros/bit_width.inc\"\n\n";
     text << get_generated_warning("data/maps/" + mapName + "/map.json", true);
 
     text << mapName << ":\n"
-         << "\t.4byte " << json_to_string(layout, "name") << "\n";
+         << "\tptrvalue " << json_to_string(layout, "name") << "\n";
 
     if (map_data.object_items().find("shared_events_map") != map_data.object_items().end())
-        text << "\t.4byte " << json_to_string(map_data, "shared_events_map") << "_MapEvents\n";
+        text << "\tptrvalue " << json_to_string(map_data, "shared_events_map") << "_MapEvents\n";
     else
-        text << "\t.4byte " << mapName << "_MapEvents\n";
+        text << "\tptrvalue " << mapName << "_MapEvents\n";
 
     if (map_data.object_items().find("shared_scripts_map") != map_data.object_items().end())
-        text << "\t.4byte " << json_to_string(map_data, "shared_scripts_map") << "_MapScripts\n";
+        text << "\tptrvalue " << json_to_string(map_data, "shared_scripts_map") << "_MapScripts\n";
     else
-        text << "\t.4byte " << mapName << "_MapScripts\n";
+        text << "\tptrvalue " << mapName << "_MapScripts\n";
 
     if (map_data.object_items().find("connections") != map_data.object_items().end()
      && map_data["connections"].array_items().size() > 0 && json_to_string(map_data, "connections_no_include", true) != "TRUE")
-        text << "\t.4byte " << mapName << "_MapConnections\n";
+        text << "\tptrvalue " << mapName << "_MapConnections\n";
     else
-        text << "\t.4byte NULL\n";
+        text << "\tptrvalue NULL\n";
 
     text << "\t.2byte " << json_to_string(map_data, "music") << "\n"
          << "\t.2byte " << json_to_string(layout, "id") << "\n"
@@ -226,7 +227,8 @@ string generate_map_connections_text(Json map_data) {
 
     text << "\n" << mapName << "_MapConnections:\n"
          << "\t.4byte " << map_data["connections"].array_items().size() << "\n"
-         << "\t.4byte " << mapName << "_MapConnectionsList\n\n";
+         << "\tspace64 4" << "\n"
+         << "\tptrvalue " << mapName << "_MapConnectionsList\n\n";
 
     return text.str();
 }
@@ -473,9 +475,9 @@ string generate_groups_text(Json groups_data, vector<string> &invalid_maps) {
             string map_name_str = json_to_string(map_name);
             auto it = find(invalid_maps.begin(), invalid_maps.end(), map_name_str);
             if (it == invalid_maps.end()) {
-                text << "\t.4byte " << map_name_str << "\n";
+                text << "\tptrvalue " << map_name_str << "\n";
             } else {
-                text << "\t.4byte NULL\n";
+                text << "\tptrvalue NULL\n";
             }
         }
         text << "\n";
@@ -483,7 +485,7 @@ string generate_groups_text(Json groups_data, vector<string> &invalid_maps) {
 
     text << "\t.align 2\n" << "gMapGroups::\n";
     for (auto &group : groups_data["group_order"].array_items()) {
-        text << "\t.4byte " << json_to_string(group) << "\n";
+        text << "\tptrvalue " << json_to_string(group) << "\n";
     }
     text << "\n";
 
@@ -784,12 +786,12 @@ string generate_layout_headers_text(Json layouts_data) {
              << "\t.incbin \"" << json_to_string(layout, "blockdata_filepath") << "\"\n\n"
              << "\t.align 2\n"
              << layoutName << "::\n"
-             << "\t.4byte " << json_to_string(layout, "width") << "\n"
-             << "\t.4byte " << json_to_string(layout, "height") << "\n"
-             << "\t.4byte " << border_label << "\n"
-             << "\t.4byte " << blockdata_label << "\n"
-             << "\t.4byte " << json_to_string(layout, "primary_tileset") << "\n"
-             << "\t.4byte " << json_to_string(layout, "secondary_tileset") << "\n";
+             << "\tptrvalue " << json_to_string(layout, "width") << "\n"
+             << "\tptrvalue " << json_to_string(layout, "height") << "\n"
+             << "\tptrvalue " << border_label << "\n"
+             << "\tptrvalue " << blockdata_label << "\n"
+             << "\tptrvalue " << json_to_string(layout, "primary_tileset") << "\n"
+             << "\tptrvalue " << json_to_string(layout, "secondary_tileset") << "\n";
         if (layout_version == "frlg")
             text << "\t.byte 1\n"; // LAYOUT_VERSION_FRLG
         else if (layout_version == "hns")
@@ -826,11 +828,11 @@ string generate_layouts_table_text(Json layouts_data) {
         if (!std::filesystem::exists(json_to_string(layout, "border_filepath")))
             continue;
         if (!layout_matches_version(layout)) {
-            text << "\t.4byte NULL\n";
+            text << "\tptrvalue NULL\n";
         } else {
             string layout_name = json_to_string(layout, "name", true);
             if (layout_name.empty()) layout_name = "NULL";
-            text << "\t.4byte " << layout_name << "\n";
+            text << "\tptrvalue " << layout_name << "\n";
         }
     }
 

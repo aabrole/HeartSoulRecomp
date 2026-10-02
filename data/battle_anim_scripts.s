@@ -12,7 +12,7 @@
 	.include "asm/macros/battle_anim_script.inc"
 	.include "constants/constants.inc"
 
-	.section script_data, "aw", %progbits
+	.section script_data, "aw"
 
 gBattleAnimGeneral_MonScared::
 	createvisualtask AnimTask_SetAttackerTargetLeftPos, 2, 1
@@ -23235,11 +23235,7 @@ HornDrillContinue:
 	create_flashing_hitsplat_sprite ANIM_TARGET, 3, x=-8, y=-5, relative_to=ANIM_TARGET, animation=3
 	playsewithpan SE_M_HORN_ATTACK, SOUND_PAN_TARGET
 	delay 4
-	create_flashing_hitsplat_sprite ANIM_TARGET, 3, x=4, y=-12, relative_to=ANIM_TARGET, animation=3
-	playsewithpan SE_M_HORN_ATTACK, SOUND_PAN_TARGET
-	delay 4
 	create_flashing_hitsplat_sprite ANIM_TARGET, 3, x=16, y=0, relative_to=ANIM_TARGET, animation=3
-	playsewithpan SE_M_HORN_ATTACK, SOUND_PAN_TARGET
 	delay 4
 	create_flashing_hitsplat_sprite ANIM_TARGET, 3, x=5, y=18, relative_to=ANIM_TARGET, animation=3
 	playsewithpan SE_M_HORN_ATTACK, SOUND_PAN_TARGET

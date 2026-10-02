@@ -29,6 +29,8 @@ tools/agbcc
 *.sa*
 Thumbs.db
 build/
+SDL2/
+SDL2.dll
 .DS_Store
 *.ddump
 .idea/
@@ -70,3 +72,5 @@ src/data/trainers_hns.h
 tools/poryscript
 porymap.user.json
 tools/mid2gbs/.venv
+SDL2/
+SDL2.dll

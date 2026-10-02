@@ -6,9 +6,9 @@
 .set SPECIAL_\ptr, __special__
 .set __special__, __special__ + 1
 	.if \requests_effects == 0
-	.4byte \ptr
+		ptrvalue \ptr
 	.else
-	.4byte \ptr + ROM_SIZE
+		ptrvalue \ptr + ROM_SIZE
 	.endif
 .endm
 
