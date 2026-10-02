@@ -16,7 +16,11 @@
 #include <xinput.h>
 #endif
 
+#ifdef __ANDROID__
+#include <SDL.h>
+#else
 #include <SDL2/SDL.h>
+#endif
 
 #include "global.h"
 #include "platform.h"
@@ -242,15 +246,32 @@ int main(int argc, char **argv)
     freopen( "CON", "w", stdout ) ;
 #endif
 
+#ifdef __ANDROID__
+    // The save lives in the app's own external files folder
+    // (Android/data/<package>/files), which needs no permission and which a
+    // file manager can reach to back the save up.
+    {
+        const char *dir = SDL_AndroidGetExternalStoragePath();
+
+        if (dir != NULL)
+            chdir(dir);
+    }
+#endif
+
     ReadSaveFile("pokeemerald.sav");
 
-    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
+    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0)
     {
         DBGPRINTF("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
 
-    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, DISPLAY_WIDTH * videoScale, DISPLAY_HEIGHT * videoScale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, DISPLAY_WIDTH * videoScale, DISPLAY_HEIGHT * videoScale,
+#ifdef __ANDROID__
+                                 SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+#else
+                                 SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+#endif
     if (sdlWindow == NULL)
     {
         DBGPRINTF("Window could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -479,6 +500,53 @@ case KEY_##key:  keys &= ~key; break;
 #define HANDLE_KEYDOWN(key) \
 case KEY_##key:  keys |= key; break;
 
+// Game controllers. Buttons are mapped by position, as on a GBA: A is the
+// right face button and B the bottom one, whatever the pad prints on them.
+static u16 sPadKeys;
+static bool sPadFastForward;
+
+static u16 PadKeyFromButton(Uint8 button)
+{
+    switch (button)
+    {
+    case SDL_CONTROLLER_BUTTON_B:             return A_BUTTON;
+    case SDL_CONTROLLER_BUTTON_A:             return B_BUTTON;
+    case SDL_CONTROLLER_BUTTON_START:         return START_BUTTON;
+    case SDL_CONTROLLER_BUTTON_BACK:          return SELECT_BUTTON;
+    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:  return L_BUTTON;
+    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return R_BUTTON;
+    case SDL_CONTROLLER_BUTTON_DPAD_UP:       return DPAD_UP;
+    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:     return DPAD_DOWN;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT:     return DPAD_LEFT;
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:    return DPAD_RIGHT;
+    default:                                  return 0;
+    }
+}
+
+#define PAD_STICK_THRESHOLD 16000
+
+static u16 PadStickKeys(void)
+{
+    u16 result = 0;
+    int i;
+
+    for (i = 0; i < SDL_NumJoysticks(); i++)
+    {
+        SDL_GameController *pad = SDL_IsGameController(i) ? SDL_GameControllerFromInstanceID(SDL_JoystickGetDeviceInstanceID(i)) : NULL;
+        int x, y;
+
+        if (pad == NULL)
+            continue;
+        x = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX);
+        y = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY);
+        if (x < -PAD_STICK_THRESHOLD) result |= DPAD_LEFT;
+        if (x >  PAD_STICK_THRESHOLD) result |= DPAD_RIGHT;
+        if (y < -PAD_STICK_THRESHOLD) result |= DPAD_UP;
+        if (y >  PAD_STICK_THRESHOLD) result |= DPAD_DOWN;
+    }
+    return result;
+}
+
 void ProcessEvents(void)
 {
     SDL_Event event;
@@ -489,6 +557,24 @@ void ProcessEvents(void)
         {
         case SDL_QUIT:
             isRunning = false;
+            break;
+        case SDL_CONTROLLERDEVICEADDED:
+            SDL_GameControllerOpen(event.cdevice.which);
+            break;
+        case SDL_CONTROLLERBUTTONDOWN:
+            sPadKeys |= PadKeyFromButton(event.cbutton.button);
+            break;
+        case SDL_CONTROLLERBUTTONUP:
+            sPadKeys &= ~PadKeyFromButton(event.cbutton.button);
+            break;
+        case SDL_CONTROLLERAXISMOTION:
+            if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
+            {
+                // Hold the right trigger to fast forward.
+                sPadFastForward = event.caxis.value > PAD_STICK_THRESHOLD;
+                if (!speedUp)
+                    timeScale = sPadFastForward ? 5.0 : 1.0;
+            }
             break;
         case SDL_KEYUP:
             switch (event.key.keysym.sym)
@@ -634,7 +720,7 @@ u16 Platform_GetKeyInput(void)
     return (gamepadKeys != 0) ? gamepadKeys : keys;
 #endif
 
-    return keys;
+    return keys | sPadKeys | PadStickKeys();
 }
 
 void VDraw(SDL_Texture *texture)

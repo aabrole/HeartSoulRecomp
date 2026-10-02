@@ -29,7 +29,7 @@ tools/agbcc
 *.sa*
 Thumbs.db
 build/
-SDL2/
+/SDL2/
 SDL2.dll
 .DS_Store
 *.ddump
@@ -72,8 +72,15 @@ src/data/trainers_hns.h
 tools/poryscript
 porymap.user.json
 tools/mid2gbs/.venv
-SDL2/
+/SDL2/
 SDL2.dll
 port/out/
 /pokehns32
 /pokehns64
+/.claude/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+/build/android/

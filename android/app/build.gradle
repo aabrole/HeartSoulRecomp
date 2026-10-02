@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.heartsoul.recomp'
+    compileSdk 34
+    ndkVersion '27.2.12479018'
+
+    defaultConfig {
+        applicationId 'com.heartsoul.recomp'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+
+        ndk {
+            // 32-bit on purpose: pointers match the GBA's, so the game's data
+            // and structs need no 64-bit conversion.
+            abiFilters 'armeabi-v7a'
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    sourceSets.main.java.srcDirs += '../SDL2/android-project/app/src/main/java'
+}

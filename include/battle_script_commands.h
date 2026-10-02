@@ -26,8 +26,12 @@ union TRANSPARENT StatChangeFlags
 {
     int raw;
     u32 raw_u32;
+#ifndef __clang__
+    // clang only honors a transparent union whose members all have the size
+    // of the first. It converts narrower arguments to int by itself.
     u16 raw_u16;
     u8 raw_u8;
+#endif
     struct {
         bool32 allowPtr:1; // STAT_CHANGE_ALLOW_PTR
         bool32 mirrorArmored:1; // STAT_CHANGE_MIRROR_ARMOR

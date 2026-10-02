@@ -1,17 +1,18 @@
 #!/bin/bash
-# Parses every game source with clang for 32-bit ARM, the compiler family the
-# Android NDK uses, and reports which files it rejects. Run inside the
-# hns-port image from the repo root, after a normal build has generated assets.
-out=${1:-/tmp/clang-check}
-mkdir -p "$out"
+# Parses every game source with the Android NDK's clang for armeabi-v7a and
+# lists the files it rejects. Run on the Mac from the repo root after a normal
+# build has generated the assets. Logs go to port/out/clang-check/.
+NDK=${ANDROID_NDK:-/opt/homebrew/share/android-commandlinetools/ndk/27.2.12479018}
+CL=$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang
+out=port/out/clang-check
+mkdir -p "$out" port/out/mac
+[ -x port/out/mac/preproc ] || c++ -std=c++11 -O2 -w tools/preproc/*.cpp -o port/out/mac/preproc
+FLAGS="--target=armv7a-linux-androideabi21 -marm -iquote include -I/opt/homebrew/include -Wno-trigraphs -DMODERN=1 -DTESTING=0 -DPOKEMON_HNS -std=gnu17 -DNONMATCHING -DPORTABLE -DPLATFORM_SDL2 -DRENDERER_EASY_DRAW -DUBFIX"
 check() {
   f=$1
-  log="$2/$(echo "$f" | tr / _).log"
-  arm-linux-gnueabihf-cpp -iquote include -Wno-trigraphs -DMODERN=1 -DTESTING=0 -DPOKEMON_HNS -std=gnu17 \
-      -D NONMATCHING -D PORTABLE -D PLATFORM_SDL2 -D RENDERER_EASY_DRAW -D UBFIX "$f" 2>/dev/null \
-    | tools/preproc/preproc -i "$f" charmap.txt 2>/dev/null \
-    | clang --target=armv7a-linux-gnueabihf -x cpp-output -std=gnu17 -fsyntax-only -fno-builtin \
-        -Wno-everything -ferror-limit=5 - > "$log" 2>&1 || echo "$f"
+  log="$out/$(echo "$f" | tr / _).log"
+  $CL $FLAGS -E "$f" 2>"$log" | port/out/mac/preproc -i "$f" charmap.txt 2>>"$log" \
+    | $CL $FLAGS -x cpp-output -fsyntax-only -fno-builtin -Wno-everything -ferror-limit=8 - >>"$log" 2>&1 || echo "$f"
 }
-export -f check
-find src -name '*.c' | sort | xargs -P "$(nproc)" -I{} bash -c 'check {} '"$out"
+export -f check; export CL FLAGS out
+find src -name '*.c' | sort | xargs -P 10 -I{} bash -c 'check {}'
