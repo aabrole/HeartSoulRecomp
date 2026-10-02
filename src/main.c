@@ -34,7 +34,12 @@ static void SerialIntr(void);
 static void IntrDummy(void);
 
 // Defined in the linker script so that the test build can override it.
+#ifdef PORTABLE
+// The GBA linker script sets this symbol.
+#define gInitialMainCB2 CB2_InitCopyrightScreenAfterBootup
+#else
 extern void gInitialMainCB2(void);
+#endif
 extern void CB2_FlashNotDetectedScreen(void);
 
 const enum GameVersion gGameVersion = GAME_VERSION;

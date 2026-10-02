@@ -298,6 +298,11 @@ bool8 SiiRtcSetDateTime(struct SiiRtcInfo *rtc)
 
     sLocked = TRUE;
 
+#ifdef PORTABLE
+    // The native build reads the host clock and cannot set it.
+    (void)i;
+    sLocked = FALSE;
+#else
     GPIO_PORT_DATA = SCK_HI;
     GPIO_PORT_DATA = SCK_HI | CS_HI;
 
@@ -312,6 +317,7 @@ bool8 SiiRtcSetDateTime(struct SiiRtcInfo *rtc)
     GPIO_PORT_DATA = SCK_HI;
 
     sLocked = FALSE;
+#endif
 
     return TRUE;
 }
@@ -359,6 +365,11 @@ bool8 SiiRtcSetTime(struct SiiRtcInfo *rtc)
 
     sLocked = TRUE;
 
+#ifdef PORTABLE
+    // The native build reads the host clock and cannot set it.
+    (void)i;
+    sLocked = FALSE;
+#else
     GPIO_PORT_DATA = SCK_HI;
     GPIO_PORT_DATA = SCK_HI | CS_HI;
 
@@ -373,6 +384,7 @@ bool8 SiiRtcSetTime(struct SiiRtcInfo *rtc)
     GPIO_PORT_DATA = SCK_HI;
 
     sLocked = FALSE;
+#endif
 
     return TRUE;
 }

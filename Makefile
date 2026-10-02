@@ -122,8 +122,26 @@ ifeq ($(PORTABLE),1)
       PREFIX := i686-w64-mingw32-
     endif # IS64BIT
   else # LINUX
-    PREFIX :=
+    # Empty for a native build. Set to a cross prefix such as
+    # arm-linux-gnueabihf- to cross compile.
+    PREFIX ?=
   endif # TARGET_OS
+  # x86 compilers and assemblers pick the width with -m32/-m64 and --32/--64.
+  # Other targets (ARM cross compilers) have one width and reject those flags.
+  ifeq ($(PREFIX),$(filter $(PREFIX),x86_64-w64-mingw32- i686-w64-mingw32-))
+    WIDTH_CFLAG := -m$(BIT_WIDTH)
+    WIDTH_ASFLAG := --$(BIT_WIDTH)
+  else ifeq ($(PREFIX),)
+    WIDTH_CFLAG := -m$(BIT_WIDTH)
+    WIDTH_ASFLAG := --$(BIT_WIDTH)
+  else
+    WIDTH_CFLAG :=
+    WIDTH_ASFLAG :=
+  endif
+  # cc1 is run directly, so it does not get the compiler driver's default
+  # CPU and float ABI. Cross builds pass them here.
+  ARCH_CFLAGS ?=
+  ARCH_ASFLAGS ?=
 else
 #  PREFIX := arm-none-eabi-
 endif
@@ -156,7 +174,12 @@ ifeq ($(PORTABLE),1)
     else
       FIX_UNDERSCORE := $(OBJCOPY)
     endif
-    LEADING_UNDERSCORE_FLAG := -fleading-underscore
+    # Only 32-bit Windows prefixes C symbols with an underscore.
+    ifeq ($(TARGET_OS),WINDOWS)
+      LEADING_UNDERSCORE_FLAG := -fleading-underscore
+    else
+      LEADING_UNDERSCORE_FLAG :=
+    endif
   endif
 
   PLATFORM_LFLAGS :=
@@ -265,7 +288,7 @@ SHELL := bash -o pipefail
 
 # Set flags for tools
 ifeq ($(PORTABLE),1)
-  ASFLAGS := --$(BIT_WIDTH) $(ASFLAGS64) --defsym VER_64BIT=$(IS64BIT) --defsym MODERN=1 --defsym PORTABLE=1 --defsym $(GAME_VERSION)=1
+  ASFLAGS := $(WIDTH_ASFLAG) $(ARCH_ASFLAGS) $(ASFLAGS64) --defsym VER_64BIT=$(IS64BIT) --defsym MODERN=1 --defsym PORTABLE=1 --defsym $(GAME_VERSION)=1
 else
   ASFLAGS := -mcpu=arm7tdmi -march=armv4t -meabi=5 --defsym MODERN=1 --defsym $(GAME_VERSION)=1
 endif
@@ -285,7 +308,7 @@ ifeq ($(PORTABLE),1)
   ARMCC := $(PREFIX)gcc
   PATH_ARMCC := PATH="$(PATH)" $(ARMCC)
   CC1 	:= $(shell $(PREFIX)gcc --print-prog-name=cc1) -quiet
-  override CFLAGS += $(OS_CFLAGS) $(PLATFORM_CFLAGS) -Werror=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-trigraphs -Wimplicit -Wparentheses -Wunused -m$(BIT_WIDTH) -std=gnu17 $(LEADING_UNDERSCORE_FLAG) -fno-dce -fno-builtin -Wno-unused-function -DPORTABLE -DNONMATCHING -D UBFIX -DMODERN=1
+  override CFLAGS += $(OS_CFLAGS) $(PLATFORM_CFLAGS) $(ARCH_CFLAGS) -Werror=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-trigraphs -Wimplicit -Wparentheses -Wunused $(WIDTH_CFLAG) -std=gnu17 $(LEADING_UNDERSCORE_FLAG) -fno-dce -fno-builtin -Wno-unused-function -DPORTABLE -DNONMATCHING -D UBFIX -DMODERN=1
   LIB := $(LIBPATH) -lgcc -lc
 else
 ifeq ($(RELEASE),1)

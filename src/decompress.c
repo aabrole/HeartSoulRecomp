@@ -403,6 +403,7 @@ static IWRAM_DATA const u32 *sDataPtr = 0;
 static IWRAM_DATA u32 sCurrState = 0;
 
 // 33 because of FastUnsafeCopy32, we divide by 4 because the buffer is an array of u32
+#ifndef PORTABLE
 #define FUNC_BUFFER_SIZE(funcStart, funcEnd)(((u32)(funcEnd) - (u32)(funcStart) + 33) / 4)
 
 extern void FastUnsafeCopy32(void *, const void *, u32 size);
@@ -412,6 +413,17 @@ static inline void CopyFuncToIwram(void *funcBuffer, const void *funcStartAddres
 {
     FastUnsafeCopy32(funcBuffer, funcStartAddress, funcEndAdress - funcStartAddress);
 }
+
+// The decoder to call: the copy in IWRAM.
+#define IWRAM_FUNC(funcBuffer, func) ((void *)(funcBuffer))
+#else
+// The GBA copies each decoder to the stack to run it from fast RAM. A native
+// build cannot execute its stack and gains nothing from it, so the decoders
+// run where they are.
+#define FUNC_BUFFER_SIZE(funcStart, funcEnd) 1
+#define CopyFuncToIwram(funcBuffer, funcStartAddress, funcEndAdress) ((void)(funcBuffer))
+#define IWRAM_FUNC(funcBuffer, func) ((void *)(func))
+#endif
 
 // The reason for macros and unrolling the loops stems from the following:
 // currK can be max 6, meaning in the worst case scenario it takes minimum 4 loop iterations, where we don't need to check if bitIndex is >= 32, because it's mathematically impossible for it to be.
@@ -531,7 +543,7 @@ static void DecodeLOtANS(const u32 *data, const u32 *pFreqs, u8 *resultVec, u32 
     u32 funcBuffer[FUNC_BUFFER_SIZE(DecodeLOtANSLoop, SwitchToArmCallLOtANS)];
 
     CopyFuncToIwram(funcBuffer, DecodeLOtANSLoop, SwitchToArmCallLOtANS);
-    SwitchToArmCallLOtANS(data, sWorkingYkTable, resultVec, &resultVec[count - remainingCount], (void *) funcBuffer);
+    SwitchToArmCallLOtANS(data, sWorkingYkTable, resultVec, &resultVec[count - remainingCount], IWRAM_FUNC(funcBuffer, DecodeLOtANSLoop));
 
     if (remainingCount)
     {
@@ -607,7 +619,7 @@ static void DecodeSymtANS(const u32 *data, const u32 *pFreqs, u16 *resultVec, u3
     u32 funcBuffer[FUNC_BUFFER_SIZE(DecodeLOtANSLoop, SwitchToArmCallLOtANS)];
     // CopyFuncToIwram(funcBuffer, DecodeSymtANSLoop, SwitchToArmCallDecodeSymtANS);
     CopyFuncToIwram(funcBuffer, DecodeLOtANSLoop, SwitchToArmCallLOtANS);
-    SwitchToArmCallDecodeSymtANS(data, sWorkingYkTable, resultVec, &resultVec[count], (void *) funcBuffer);
+    SwitchToArmCallDecodeSymtANS(data, sWorkingYkTable, resultVec, &resultVec[count], IWRAM_FUNC(funcBuffer, DecodeSymtANSLoop));
 }
 
 #define ANS_LOOP_MAIN(nibble)   \
@@ -785,7 +797,7 @@ static void DecodeSymDeltatANS(const u32 *data, const u32 *pFreqs, u16 *resultVe
 
     u32 funcBuffer[FUNC_BUFFER_SIZE(DecodeSymDeltatANSLoop, SwitchToArmCallSymDeltaANS)];
     CopyFuncToIwram(funcBuffer, DecodeSymDeltatANSLoop, SwitchToArmCallSymDeltaANS);
-    u32 currSymbol = SwitchToArmCallSymDeltaANS(data, sWorkingYkTable, resultVec, &resultVec[count - remainingCount], (void *) funcBuffer);
+    u32 currSymbol = SwitchToArmCallSymDeltaANS(data, sWorkingYkTable, resultVec, &resultVec[count - remainingCount], IWRAM_FUNC(funcBuffer, DecodeSymDeltatANSLoop));
 
     if (remainingCount)
     {
@@ -942,7 +954,7 @@ static void DecodeInstructionsIwram(u32 headerLoSize, const u8 *loVec, const u16
     u32 funcBuffer[FUNC_BUFFER_SIZE(DecodeInstructions, SwitchToArmCallDecodeInstructions)];
 
     CopyFuncToIwram(funcBuffer, DecodeInstructions, SwitchToArmCallDecodeInstructions);
-    SwitchToArmCallDecodeInstructions(headerLoSize, loVec, symVec, dest, (void *) funcBuffer);
+    SwitchToArmCallDecodeInstructions(headerLoSize, loVec, symVec, dest, IWRAM_FUNC(funcBuffer, DecodeInstructions));
 }
 
 //  Entrance point for smol compressed data
@@ -1098,7 +1110,7 @@ static void SmolDecompressTilemap(const struct SmolTilemapHeader *header, const 
     u32 funcBuffer[FUNC_BUFFER_SIZE(DeltaDecodeTileNumbers, SwitchToArmCallDecodeTileNumbers)];
 
     CopyFuncToIwram(funcBuffer, DeltaDecodeTileNumbers, SwitchToArmCallDecodeTileNumbers);
-    SwitchToArmCallDecodeTileNumbers(deltaDest, arraySize, (void *) funcBuffer);
+    SwitchToArmCallDecodeTileNumbers(deltaDest, arraySize, IWRAM_FUNC(funcBuffer, DeltaDecodeTileNumbers));
 }
 
 //  Helper functions for determining modes
@@ -1393,6 +1405,12 @@ bool8 LoadCompressedSpriteSheetUsingHeap(const struct CompressedSpriteSheet *src
     return FALSE;
 }
 
+#ifdef PORTABLE
+void FastLZ77UnCompWram(const u32 *src, void *dest)
+{
+    LZ77UnCompWram(src, dest);
+}
+#else
 extern const u32 LZ77UnCompWRAMOptimized[];
 extern const u32 LZ77UnCompWRAMOptimized_end[];
 
@@ -1408,3 +1426,4 @@ void FastLZ77UnCompWram(const u32 *src, void *dest)
     CopyFuncToIwram(funcBuffer, LZ77UnCompWRAMOptimized, LZ77UnCompWRAMOptimized_end);
     SwitchToArmCallFastLZ77(src, dest, (void *) funcBuffer);
 }
+#endif

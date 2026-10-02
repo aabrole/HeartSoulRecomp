@@ -1,0 +1,15 @@
+# Build and headless-test environment for the native port.
+# 32-bit ARM Linux (armhf) is the closest desktop stand-in for the Android
+# armeabi-v7a target: same pointer size and same data layout as the GBA.
+FROM debian:bookworm
+RUN dpkg --add-architecture armhf && apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential git make pkg-config python3 ca-certificates \
+      libpng-dev zlib1g-dev \
+      gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+      libsdl2-dev:armhf libc6:armhf \
+      qemu-user gdb-multiarch \
+      gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
+    && rm -rf /var/lib/apt/lists/*
+ENV QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
+WORKDIR /src

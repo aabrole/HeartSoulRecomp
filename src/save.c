@@ -92,7 +92,11 @@ STATIC_ASSERT(sizeof(struct SaveBlock3) <= SAVE_BLOCK_3_CHUNK_SIZE * NUM_SECTORS
 // to skip the tail of a partly-filled byte, plus the 8 bits of trailing padding.
 // If this fires, that headroom is gone and the new setting needs a save
 // migration rather than another field.
+// The native build does not use the GBA struct ABI, so the size differs there
+// and its saves are not interchangeable with GBA saves.
+#ifndef PORTABLE
 STATIC_ASSERT(sizeof(struct ChallengeSettings) == 32, ChallengeSettingsLayoutPinned);
+#endif
 STATIC_ASSERT(sizeof(struct SaveBlock2) <= SECTOR_DATA_SIZE, SaveBlock2FreeSpace);
 #ifndef PORTABLE
 STATIC_ASSERT(sizeof(struct SaveBlock1) <= SECTOR_DATA_SIZE * (SECTOR_ID_SAVEBLOCK1_END - SECTOR_ID_SAVEBLOCK1_START + 1), SaveBlock1FreeSpace);

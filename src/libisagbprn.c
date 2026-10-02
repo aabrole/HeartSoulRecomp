@@ -163,7 +163,9 @@ void AGBAssert(const char *pFile, int nLine, const char *pExpression, int nStopP
     {
         AGBPrintf("ASSERTION FAILED  FILE=[%s] LINE=[%d]  EXP=[%s] \n", pFile, nLine, pExpression);
         AGBPrintFlush();
+#ifndef PORTABLE
         asm(".hword 0xEFFF");
+#endif
     }
     else
     {
@@ -200,7 +202,9 @@ void NoCashGBAAssert(const char *pFile, s32 nLine, const char *pExpression, bool
     if (nStopProgram)
     {
         NoCashGBAPrintf("ASSERTION FAILED  FILE=[%s] LINE=[%d]  EXP=[%s]", pFile, nLine, pExpression);
+#ifndef PORTABLE
         asm(".hword 0xEFFF");
+#endif
     }
     else
     {
@@ -246,7 +250,9 @@ void MgbaAssert(const char *pFile, s32 nLine, const char *pExpression, bool32 nS
     if (nStopProgram)
     {
         MgbaPrintf(MGBA_LOG_ERROR, "ASSERTION FAILED  FILE=[%s] LINE=[%d]  EXP=[%s]", pFile, nLine, pExpression);
+#ifndef PORTABLE
         asm(".hword 0xEFFF");
+#endif
     }
     else
     {

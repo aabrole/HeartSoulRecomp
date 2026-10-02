@@ -534,4 +534,48 @@ u16 Sqrt(u32 num)
     }
     return bound;
 }
+
+// The argument block is the BIOS's: source length in bytes, source and
+// destination unit widths in bits, and an offset added to every unit, or only
+// to non-zero units unless the top bit is set.
+void BitUnPack(const void *src_, void *dest_, const void *args_)
+{
+    const uint8_t *src = src_;
+    const uint8_t *args = args_;
+    uint8_t *dest = dest_;
+    uint32_t length = CPUReadHalfWord(args);
+    uint32_t srcBits = args[2];
+    uint32_t destBits = args[3];
+    uint32_t offsetWord = CPUReadMemory(args + 4);
+    uint32_t offset = offsetWord & 0x7FFFFFFF;
+    bool32 offsetZeros = offsetWord >> 31;
+    uint32_t out = 0;
+    uint32_t outBits = 0;
+
+    if (srcBits == 0 || srcBits > 8 || destBits == 0 || destBits > 32)
+        return;
+
+    while (length-- != 0)
+    {
+        uint32_t byte = *src++;
+        uint32_t bit;
+
+        for (bit = 0; bit < 8; bit += srcBits)
+        {
+            uint32_t unit = (byte >> bit) & ((1u << srcBits) - 1);
+
+            if (unit != 0 || offsetZeros)
+                unit += offset;
+            out |= unit << outBits;
+            outBits += destBits;
+            if (outBits >= 32)
+            {
+                CPUWriteMemory(dest, out);
+                dest += 4;
+                out = 0;
+                outBits = 0;
+            }
+        }
+    }
+}
 #endif //PORTABLE

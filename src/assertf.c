@@ -1,7 +1,7 @@
-#ifndef PORTABLE
-#include <alloca.h>
-#else
+#if defined(PORTABLE) && defined(_WIN32)
 #include <malloc.h>
+#else
+#include <alloca.h>
 #endif
 #include <stdarg.h>
 #include "global.h"
@@ -315,6 +315,7 @@ void AssertfCrashScreen(const void *return1, const char *fmt, ...)
     }
 
     // Allocate on stack if possible.
+#ifndef PORTABLE
     if (!backup)
     {
         extern char __iwram_end[];
@@ -325,6 +326,7 @@ void AssertfCrashScreen(const void *return1, const char *fmt, ...)
             backup->onHeap = FALSE;
         }
     }
+#endif
 
     if (!backup)
     {

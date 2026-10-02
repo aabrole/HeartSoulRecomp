@@ -36,11 +36,13 @@ struct MusicPlayerInfo gMPlayInfo_BGM;
 struct MusicPlayerInfo gMPlayInfo_SE1;
 struct MusicPlayerInfo gMPlayInfo_SE2;
 struct MusicPlayerInfo gMPlayInfo_SE3;
-struct MusicPlayerTrack gMPlayTrack_BGM[10];
+struct MusicPlayerTrack gMPlayTrack_BGM[16];
 struct MusicPlayerTrack gMPlayTrack_SE1[3];
-struct MusicPlayerTrack gMPlayTrack_SE2[9];
+struct MusicPlayerTrack gMPlayTrack_SE2[11];
 struct MusicPlayerTrack gMPlayTrack_SE3[1];
 u8 gMPlayMemAccArea[0x10];
+u8 gUsedCGBChannels;
+u8 gGBSSFXActiveMask;
 
 #ifdef PORTABLE
 bool8 gSoundInit = FALSE;
@@ -50,8 +52,10 @@ void MP2K_event_nxx();
 void MP2KPlayerMain();
 #endif
 
+#ifndef PORTABLE
 BSS_CODE ALIGNED(4) char SoundMainRAM_Buffer[0xB40] = {0};
 BSS_CODE ALIGNED(4) u32 hq_buffer_ptr[0x130] = {0};
+#endif
 
 u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust)
 {
@@ -104,7 +108,9 @@ void m4aSoundInit(void)
 {
     s32 i;
 
+#ifndef PORTABLE
     CpuCopy32((void *)((s32)SoundMainRAM & ~1), SoundMainRAM_Buffer, sizeof(SoundMainRAM_Buffer));
+#endif
 
     SoundInit(&gSoundInfo);
     MPlayExtender(gCgbChans);

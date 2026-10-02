@@ -296,6 +296,10 @@ void CFile::TryConvertIncbin()
     if (incbinType == -1)
         return;
 
+    // Only a whole identifier counts, so names such as Foo_DUMMY( are left alone.
+    if (m_pos > 0 && IsIdentifierChar(m_buffer[m_pos - 1]))
+        return;
+
     int size = 1 << (incbinType / 2);
     if (size > 4)
         size = 4;
