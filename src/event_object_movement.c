@@ -18,6 +18,17 @@
 #include "field_player_avatar.h"
 #include "field_weather.h"
 #include "fieldmap.h"
+#ifdef PORTABLE
+#include "platform.h"
+// Widescreen shows 24px, a metatile and a half, either side of the 240px
+// view. Sprites must stay visible that far out, and objects must spawn and
+// despawn further out still.
+#define WIDE_CULL_X   gRenderMargin
+#define WIDE_SPAWN_X  (gRenderMargin != 0 ? 2 : 0)
+#else
+#define WIDE_CULL_X   0
+#define WIDE_SPAWN_X  0
+#endif
 #include "follower_npc.h"
 #include "follower_helper.h"
 #include "gpu_regs.h"
@@ -2978,8 +2989,8 @@ static u32 GetLightTypeFromTemplate(struct ObjectEventTemplate *template)
 // Sprite callback for light sprites
 void UpdateLightSprite(struct Sprite *sprite)
 {
-    s16 left =   gSaveBlock1Ptr->pos.x - 2;
-    s16 right =  gSaveBlock1Ptr->pos.x + 17;
+    s16 left =   gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
+    s16 right =  gSaveBlock1Ptr->pos.x + 17 + WIDE_SPAWN_X;
     s16 top =    gSaveBlock1Ptr->pos.y;
     s16 bottom = gSaveBlock1Ptr->pos.y + 15;
     s16 x = sprite->sLightXPos;
@@ -3117,8 +3128,8 @@ void TrySpawnLightSprites(s16 camX, s16 camY)
 {
     u32 i;
     u8 objectCount;
-    s16 left = gSaveBlock1Ptr->pos.x - 2;
-    s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2;
+    s16 left = gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
+    s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2 + WIDE_SPAWN_X;
     s16 top = gSaveBlock1Ptr->pos.y;
     s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2;
     if (gMapHeader.events == NULL)
@@ -3151,8 +3162,8 @@ void TrySpawnObjectEvents(s16 cameraX, s16 cameraY)
 
     if (gMapHeader.events != NULL)
     {
-        s16 left = gSaveBlock1Ptr->pos.x - 2;
-        s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2;
+        s16 left = gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
+        s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2 + WIDE_SPAWN_X;
         s16 top = gSaveBlock1Ptr->pos.y;
         s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2;
 
@@ -3207,8 +3218,8 @@ void RemoveObjectEventsOutsideView(void)
 
 static void RemoveObjectEventIfOutsideView(struct ObjectEvent *objectEvent)
 {
-    s16 left =   gSaveBlock1Ptr->pos.x - 2;
-    s16 right =  gSaveBlock1Ptr->pos.x + 17;
+    s16 left =   gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
+    s16 right =  gSaveBlock1Ptr->pos.x + 17 + WIDE_SPAWN_X;
     s16 top =    gSaveBlock1Ptr->pos.y;
     s16 bottom = gSaveBlock1Ptr->pos.y + 16;
 
@@ -10031,7 +10042,7 @@ static void UpdateObjectEventOffscreen(struct ObjectEvent *objectEvent, struct S
     if (objectEvent->graphicsId == OBJ_EVENT_GFX_SS_ANNE)
         minX = -32;
 
-    if (x >= DISPLAY_WIDTH + 16 || x2 < minX)
+    if (x >= DISPLAY_WIDTH + 16 + WIDE_CULL_X || x2 < minX - WIDE_CULL_X)
         objectEvent->offScreen = TRUE;
 
     if (y >= DISPLAY_HEIGHT + 16 || y2 < -16)
@@ -11390,7 +11401,7 @@ void UpdateObjectEventSpriteInvisibility(struct Sprite *sprite, bool8 invisible)
     x2 = x - (sprite->centerToCornerVecX >> 1);
     y2 = y - (sprite->centerToCornerVecY >> 1);
 
-    if ((s16)x >= DISPLAY_WIDTH + 16 || x2 < -16)
+    if ((s16)x >= DISPLAY_WIDTH + 16 + WIDE_CULL_X || x2 < -16 - WIDE_CULL_X)
         sprite->invisible = TRUE;
     if ((s16)y >= DISPLAY_HEIGHT + 16 || y2 < -16)
         sprite->invisible = TRUE;

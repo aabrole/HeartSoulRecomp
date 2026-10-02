@@ -1637,15 +1637,40 @@ enum MapBattleScene GetCurrentMapBattleScene(void)
     return Overworld_GetMapHeaderByGroupAndId(gSaveBlock1Ptr->location.mapGroup, gSaveBlock1Ptr->location.mapNum)->battleType;
 }
 
+#ifdef PORTABLE
+// Widescreen: makes the three map layers 64x32 while the renderer draws
+// margins. Each then needs two screenblocks, so they move down to blocks
+// 25-30. BG0's tiles share that memory from char base 2; blocks 25 and up
+// are free as long as the field windows stay below tile 0x240.
+static u32 GetOverworldTilemapBufferSize(void)
+{
+    LatchWideOverworldBg();
+    if (!UseWideOverworldBg())
+        return BG_SCREEN_SIZE;
+    SetBgAttribute(1, BG_ATTR_MAPBASEINDEX, 25);
+    SetBgAttribute(2, BG_ATTR_MAPBASEINDEX, 27);
+    SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, 29);
+    SetBgAttribute(1, BG_ATTR_SCREENSIZE, 1);
+    SetBgAttribute(2, BG_ATTR_SCREENSIZE, 1);
+    SetBgAttribute(3, BG_ATTR_SCREENSIZE, 1);
+    return BG_SCREEN_SIZE * 2;
+}
+#else
+#define GetOverworldTilemapBufferSize() BG_SCREEN_SIZE
+#endif
+
 static void InitOverworldBgs(void)
 {
+    u32 tilemapSize;
+
     InitBgsFromTemplates(0, sOverworldBgTemplates, ARRAY_COUNT(sOverworldBgTemplates));
     SetBgAttribute(1, BG_ATTR_MOSAIC, 1);
     SetBgAttribute(2, BG_ATTR_MOSAIC, 1);
     SetBgAttribute(3, BG_ATTR_MOSAIC, 1);
-    gOverworldTilemapBuffer_Bg1 = AllocZeroed(BG_SCREEN_SIZE);
-    gOverworldTilemapBuffer_Bg2 = AllocZeroed(BG_SCREEN_SIZE);
-    gOverworldTilemapBuffer_Bg3 = AllocZeroed(BG_SCREEN_SIZE);
+    tilemapSize = GetOverworldTilemapBufferSize();
+    gOverworldTilemapBuffer_Bg1 = AllocZeroed(tilemapSize);
+    gOverworldTilemapBuffer_Bg2 = AllocZeroed(tilemapSize);
+    gOverworldTilemapBuffer_Bg3 = AllocZeroed(tilemapSize);
     SetBgTilemapBuffer(1, gOverworldTilemapBuffer_Bg1);
     SetBgTilemapBuffer(2, gOverworldTilemapBuffer_Bg2);
     SetBgTilemapBuffer(3, gOverworldTilemapBuffer_Bg3);
@@ -1654,14 +1679,17 @@ static void InitOverworldBgs(void)
 
 static void InitOverworldBgs_NoResetHeap(void)
 {
+    u32 tilemapSize;
+
     ResetBgsAndClearDma3BusyFlags(FALSE);
     InitBgsFromTemplates(0, sOverworldBgTemplates, NELEMS(sOverworldBgTemplates));
     SetBgAttribute(1, BG_ATTR_MOSAIC, TRUE);
     SetBgAttribute(2, BG_ATTR_MOSAIC, TRUE);
     SetBgAttribute(3, BG_ATTR_MOSAIC, TRUE);
-    gOverworldTilemapBuffer_Bg1 = AllocZeroed(BG_SCREEN_SIZE);
-    gOverworldTilemapBuffer_Bg2 = AllocZeroed(BG_SCREEN_SIZE);
-    gOverworldTilemapBuffer_Bg3 = AllocZeroed(BG_SCREEN_SIZE);
+    tilemapSize = GetOverworldTilemapBufferSize();
+    gOverworldTilemapBuffer_Bg1 = AllocZeroed(tilemapSize);
+    gOverworldTilemapBuffer_Bg2 = AllocZeroed(tilemapSize);
+    gOverworldTilemapBuffer_Bg3 = AllocZeroed(tilemapSize);
     SetBgTilemapBuffer(1, gOverworldTilemapBuffer_Bg1);
     SetBgTilemapBuffer(2, gOverworldTilemapBuffer_Bg2);
     SetBgTilemapBuffer(3, gOverworldTilemapBuffer_Bg3);

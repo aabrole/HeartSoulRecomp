@@ -64,6 +64,22 @@ void GetCameraFocusCoords(u16 *x, u16 *y);
 u32 ExtractMetatileAttribute(u32 attributes, u8 attributeType, u8 layoutVersion);
 u32 MapGridGetMetatileAttributeAt(s16 x, s16 y, u8 attributeType);
 u8 MapGridGetMetatileLayerTypeAt(int x, int y);
+#ifdef PORTABLE
+// Widescreen. While the renderer draws margins either side of the 240px view
+// (gRenderMargin in include/platform.h), the overworld map layers are 64x32
+// tilemaps and the field camera draws OVERWORLD_WIDE_FILL_EXTRA_X more
+// metatiles to the left of the retail window, and as many to the right.
+// Everything else stays in retail coordinates: MAP_OFFSET, sprites,
+// collision, scripts and the saved map view.
+#define OVERWORLD_WIDE_BG_TILES_X   64
+#define OVERWORLD_WIDE_FILL_EXTRA_X 8
+void LatchWideOverworldBg(void);
+bool32 UseWideOverworldBg(void);
+u32 GetBgMapTilesX(void);
+u32 GetMapFillExtraX(void);
+u32 MapGridGetMetatileIdForDraw(int x, int y);
+u8 MapGridGetMetatileLayerTypeForDraw(int x, int y);
+#endif
 u8 MapGridGetElevationAt(int x, int y);
 bool8 CameraMove(int x, int y);
 void SaveMapView(void);
