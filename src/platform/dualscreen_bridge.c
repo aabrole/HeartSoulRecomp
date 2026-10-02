@@ -305,7 +305,7 @@ static void FillBattle(struct DualScreenBattle *dest)
 
 void DualScreen_FillSnapshot(struct DualScreenSnapshot *snapshot)
 {
-    u8 mapName[32];
+    u8 mapName[64];
     u32 i;
 
     memset(snapshot, 0, sizeof(*snapshot));
