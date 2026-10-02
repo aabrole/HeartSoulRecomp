@@ -158,26 +158,41 @@ static inline bool32 Script_IsAnalyzingEffects(void)
             Script_RequestWriteVar_Internal(varId); \
     })
 
+// Script commands, specials and natives that call Script_RequestEffects are
+// marked in their function pointer so the effect analyzer can tell them apart.
+// The GBA marks them by pointing into ROM mirror 1, which still runs the same
+// code. A native build has no mirror, so it marks them with SCRIPT_EFFECT_TAG
+// (set by the Makefile for the assembler too) and removes the mark to call.
+#ifdef PORTABLE
+#define SCRIPT_EFFECT_TAG 2
+#define Script_IsEffectTagged(func) ((((uintptr_t)(func)) & SCRIPT_EFFECT_TAG) != 0)
+#define Script_UntagFunc(func) ((__typeof__(func))(((uintptr_t)(func)) & ~(uintptr_t)SCRIPT_EFFECT_TAG))
+#else
+#define SCRIPT_EFFECT_TAG 0xA000000
+#define Script_IsEffectTagged(func) ((((uintptr_t)(func)) & 0xE000000) == 0xA000000)
+#define Script_UntagFunc(func) (func)
+#endif
+
 static inline void Script_CheckEffectInstrumentedSpecial(u32 specialId)
 {
     typedef u16 (*SpecialFunc)(void);
     extern const SpecialFunc gSpecials[];
     // In ROM mirror 1.
-    if (Script_IsAnalyzingEffects() && (((uintptr_t)gSpecials[specialId]) & 0xE000000) != 0xA000000)
+    if (Script_IsAnalyzingEffects() && !Script_IsEffectTagged(gSpecials[specialId]))
         Script_GotoBreak_Internal();
 }
 
 static inline void Script_CheckEffectInstrumentedGotoNative(bool8 (*func)(void))
 {
     // In ROM mirror 1.
-    if (Script_IsAnalyzingEffects() && (((uintptr_t)func) & 0xE000000) != 0xA000000)
+    if (Script_IsAnalyzingEffects() && !Script_IsEffectTagged(func))
         Script_GotoBreak_Internal();
 }
 
 static inline void Script_CheckEffectInstrumentedCallNative(void (*func)(struct ScriptContext *))
 {
     // In ROM mirror 1.
-    if (Script_IsAnalyzingEffects() && (((uintptr_t)func) & 0xE000000) != 0xA000000)
+    if (Script_IsAnalyzingEffects() && !Script_IsEffectTagged(func))
         Script_GotoBreak_Internal();
 }
 

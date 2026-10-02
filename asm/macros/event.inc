@@ -270,7 +270,7 @@
 	.if \requests_effects == 0
 	ptrvalue \func
 	.else
-	ptrvalue \func + ROM_SIZE
+	ptrvalue \func + SCRIPT_EFFECT_TAG
 	.endif
 	.endm
 
@@ -280,7 +280,7 @@
 	.if \requests_effects == 0
 	ptrvalue \func
 	.else
-	ptrvalue \func + ROM_SIZE
+	ptrvalue \func + SCRIPT_EFFECT_TAG
 	.endif
 	.endm
 

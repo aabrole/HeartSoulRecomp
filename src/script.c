@@ -135,7 +135,7 @@ bool8 RunScriptCommand(struct ScriptContext *ctx)
                 return FALSE;
             }
 
-            if ((*func)(ctx) == TRUE)
+            if (Script_UntagFunc(*func)(ctx) == TRUE)
                 return TRUE;
         }
     }
@@ -579,7 +579,7 @@ struct ScriptEffectContext *gScriptEffectContext = NULL;
 static bool32 Script_IsEffectInstrumentedCommand(ScrCmdFunc func)
 {
     // In ROM mirror 1.
-    return (((uintptr_t)func) & 0xE000000) == 0xA000000;
+    return Script_IsEffectTagged(func);
 }
 
 /* 'setjmp' and 'longjmp' cause link errors, so we use
@@ -611,7 +611,7 @@ static bool32 RunScriptImmediatelyUntilEffect_InternalLoop(struct ScriptContext 
                 return TRUE;
 
             // Command which waits for a frame.
-            if ((*func)(ctx))
+            if (Script_UntagFunc(*func)(ctx))
             {
                 gScriptEffectContext->nextCmd = ctx->scriptPtr;
                 return TRUE;
@@ -682,7 +682,7 @@ bool32 Script_MatchesCallNative(const u8 *script, void *funcPtr, bool32 requestE
     u32 callnativeFunc = (((((script[4] << 8) + script[3]) << 8) + script[2]) << 8) + script[1];
     u32 targetFunc = (u32)funcPtr;
     if (requestEffects)
-        targetFunc |= 0xA000000;
+        targetFunc |= SCRIPT_EFFECT_TAG;
     if (callnativeFunc == targetFunc)
         return TRUE;
     return FALSE;
@@ -695,7 +695,7 @@ bool32 Script_MatchesSpecial(const u8 *script, void *funcPtr)
     typedef u16 (*SpecialFunc)(void);
     extern const SpecialFunc gSpecials[];
     SpecialFunc specialFunc = gSpecials[(script[2] << 8) + script[1]];
-    if ((u32)specialFunc == ((u32)funcPtr))
+    if ((u32)Script_UntagFunc(specialFunc) == ((u32)funcPtr))
         return TRUE;
     return FALSE;
 }

@@ -288,9 +288,12 @@ SHELL := bash -o pipefail
 
 # Set flags for tools
 ifeq ($(PORTABLE),1)
-  ASFLAGS := $(WIDTH_ASFLAG) $(ARCH_ASFLAGS) $(ASFLAGS64) --defsym VER_64BIT=$(IS64BIT) --defsym MODERN=1 --defsym PORTABLE=1 --defsym $(GAME_VERSION)=1
+  # Script commands that report their effects are marked in their function
+  # pointer. The GBA marks them by pointing into a ROM mirror. A native build
+  # has no mirror and uses bit 1, which is free because functions are 4-aligned.
+  ASFLAGS := $(WIDTH_ASFLAG) $(ARCH_ASFLAGS) $(ASFLAGS64) --defsym VER_64BIT=$(IS64BIT) --defsym MODERN=1 --defsym PORTABLE=1 --defsym $(GAME_VERSION)=1 --defsym SCRIPT_EFFECT_TAG=2
 else
-  ASFLAGS := -mcpu=arm7tdmi -march=armv4t -meabi=5 --defsym MODERN=1 --defsym $(GAME_VERSION)=1
+  ASFLAGS := -mcpu=arm7tdmi -march=armv4t -meabi=5 --defsym MODERN=1 --defsym $(GAME_VERSION)=1 --defsym SCRIPT_EFFECT_TAG=0x2000000
 endif
 
 INCLUDE_DIRS := include

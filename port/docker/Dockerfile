@@ -8,7 +8,7 @@ RUN dpkg --add-architecture armhf && apt-get update && \
       libpng-dev zlib1g-dev \
       gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
       libsdl2-dev:armhf libc6:armhf \
-      qemu-user gdb-multiarch \
+      qemu-user gdb-multiarch clang procps \
       gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src

@@ -145,7 +145,7 @@ bool8 ScrCmd_gotonative(struct ScriptContext *ctx)
     Script_RequestEffects(SCREFF_V1);
     Script_CheckEffectInstrumentedGotoNative(addr);
 
-    SetupNativeScript(ctx, addr);
+    SetupNativeScript(ctx, Script_UntagFunc(addr));
     return TRUE;
 }
 
@@ -156,7 +156,7 @@ bool8 ScrCmd_special(struct ScriptContext *ctx)
     Script_RequestEffects(SCREFF_V1);
     Script_CheckEffectInstrumentedSpecial(index);
 
-    gSpecials[index]();
+    Script_UntagFunc(gSpecials[index])();
     return FALSE;
 }
 
@@ -170,7 +170,7 @@ bool8 ScrCmd_specialvar(struct ScriptContext *ctx)
     Script_RequestWriteVar(varId);
     Script_CheckEffectInstrumentedSpecial(index);
 
-    *ptr = gSpecials[index]();
+    *ptr = Script_UntagFunc(gSpecials[index])();
     return FALSE;
 }
 
@@ -182,7 +182,7 @@ bool8 ScrCmd_callnative(struct ScriptContext *ctx)
     Script_CheckEffectInstrumentedCallNative(func);
 
     ctx->waitAfterCallNative = FALSE;
-    func(ctx);
+    Script_UntagFunc(func)(ctx);
     return ctx->waitAfterCallNative;
 }
 

@@ -8,7 +8,7 @@
 	.if \requests_effects == 0
 		ptrvalue \ptr
 	.else
-		ptrvalue \ptr + ROM_SIZE
+		ptrvalue \ptr + SCRIPT_EFFECT_TAG
 	.endif
 .endm
 
