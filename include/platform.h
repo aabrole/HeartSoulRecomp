@@ -17,4 +17,10 @@ void Platform_GetTime(struct SiiRtcInfo *rtc);
 void Platform_SetTime(struct SiiRtcInfo *rtc);
 void Platform_SetAlarm(u8 *alarmData);
 
+// Sound engine diagnostics, switched on by HNS_AUDIO_LOG. See src/music_player.c.
+extern bool8 gAudioLog;
+extern u32 gAudioLogFrame;
+void AudioLogSongStart(u32 songNum, bool32 gbsEnabled, const void *header, u32 player);
+void AudioLogSummary(void);
+
 #endif

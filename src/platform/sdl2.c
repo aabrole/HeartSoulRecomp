@@ -29,9 +29,12 @@
 #include "script_pokemon_util.h"
 #include "constants/species.h"
 #include "constants/items.h"
+#include "constants/flags.h"
+#include "event_data.h"
 #include "rtc.h"
 #include "gba/defines.h"
 #include "gba/m4a_internal.h"
+#include "m4a.h"
 #include "cgb_audio.h"
 #include "gba/flash_internal.h"
 #include "platform/dma.h"
@@ -85,6 +88,14 @@ static bool sHeadless = false;
 //   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
 //   HNS_STATE_DUMP=N        print the bottom-screen state JSON to stderr every N frames
 //   HNS_TAP=2700:MOVE1,2900:RUN   bottom-screen taps: MOVE1-4, FIGHT, BAG, POKEMON, RUN
+//   HNS_WAV=path            write everything the game queues as audio to a WAV file
+//                           (32-bit float, stereo, 42048 Hz)
+//   HNS_AUDIO_LOG=1         log song starts, unhandled sound commands and voice
+//                           types to stderr, and print note counts at the end
+//   HNS_GBS=FRAME           set FLAG_SYS_GBS_ENABLED on that frame, so music started
+//                           afterwards uses the Game Boy sound engine
+//   HNS_SONG=300:5,400:21   start song 5 on frame 300 and song 21 on frame 400, to hear
+//                           a sound effect or a piece of music on its own
 // Use with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy.
 static u16 HeadlessKeyFromName(const char *name, size_t len)
 {
@@ -147,6 +158,26 @@ static bool HeadlessWantsShot(const char *list, unsigned long every, unsigned lo
     return false;
 }
 
+// Starts the songs HNS_SONG lists for this frame.
+static void HeadlessStartSongs(const char *list, unsigned long frame, bool32 gbsEnabled)
+{
+    while (list != NULL && *list != '\0')
+    {
+        char *end;
+        unsigned long start = strtoul(list, &end, 10);
+        unsigned long songNum;
+
+        if (*end != ':')
+            break;
+        songNum = strtoul(end + 1, &end, 10);
+        if (start == frame)
+            m4aSongNumStart(songNum, gbsEnabled);
+        if (*end != ',')
+            break;
+        list = end + 1;
+    }
+}
+
 static void HeadlessSaveShot(unsigned long frame)
 {
     char path[64];
@@ -167,6 +198,81 @@ static void HeadlessSaveShot(unsigned long frame)
         }
     }
     SDL_FreeSurface(surface);
+}
+
+#define WAV_SAMPLE_RATE 42048
+#define WAV_HEADER_SIZE 44
+
+static FILE *sWavFile = NULL;
+static u32 sWavDataBytes = 0;
+static u32 sWavWrites = 0;
+
+static void WavPut32(u8 *dest, u32 value)
+{
+    dest[0] = value;
+    dest[1] = value >> 8;
+    dest[2] = value >> 16;
+    dest[3] = value >> 24;
+}
+
+// Rewritten as the file grows, so a run that is killed still leaves a valid file.
+static void WavWriteHeader(void)
+{
+    u8 header[WAV_HEADER_SIZE];
+
+    memcpy(header, "RIFF", 4);
+    WavPut32(header + 4, WAV_HEADER_SIZE - 8 + sWavDataBytes);
+    memcpy(header + 8, "WAVEfmt ", 8);
+    WavPut32(header + 16, 16);
+    header[20] = 3; // IEEE float
+    header[21] = 0;
+    header[22] = 2; // channels
+    header[23] = 0;
+    WavPut32(header + 24, WAV_SAMPLE_RATE);
+    WavPut32(header + 28, WAV_SAMPLE_RATE * 2 * sizeof(float));
+    header[32] = 2 * sizeof(float);
+    header[33] = 0;
+    header[34] = 8 * sizeof(float);
+    header[35] = 0;
+    memcpy(header + 36, "data", 4);
+    WavPut32(header + 40, sWavDataBytes);
+    fseek(sWavFile, 0, SEEK_SET);
+    fwrite(header, 1, sizeof(header), sWavFile);
+    fseek(sWavFile, 0, SEEK_END);
+    fflush(sWavFile);
+}
+
+static void WavOpen(const char *path)
+{
+    sWavFile = fopen(path, "wb");
+    if (sWavFile == NULL)
+    {
+        fprintf(stderr, "headless: cannot write %s\n", path);
+        return;
+    }
+    sWavDataBytes = 0;
+    sWavWrites = 0;
+    WavWriteHeader();
+}
+
+static void WavWrite(const float *samples, u32 size)
+{
+    if (sWavFile == NULL)
+        return;
+    fwrite(samples, 1, size, sWavFile);
+    sWavDataBytes += size;
+    // About once a second.
+    if (++sWavWrites % 60 == 0)
+        WavWriteHeader();
+}
+
+static void WavClose(void)
+{
+    if (sWavFile == NULL)
+        return;
+    WavWriteHeader();
+    fclose(sWavFile);
+    sWavFile = NULL;
 }
 
 #ifndef _WIN32
@@ -198,7 +304,14 @@ static int RunHeadless(unsigned long frameCount)
     unsigned long every = everyText != NULL ? strtoul(everyText, NULL, 10) : 0;
     const char *testBattleText = getenv("HNS_TEST_BATTLE");
     unsigned long testBattleFrame = testBattleText != NULL ? strtoul(testBattleText, NULL, 10) : 0;
+    const char *gbsText = getenv("HNS_GBS");
+    unsigned long gbsFrame = gbsText != NULL ? strtoul(gbsText, NULL, 10) : 0;
+    const char *wavPath = getenv("HNS_WAV");
+    const char *songs = getenv("HNS_SONG");
     unsigned long frame;
+
+    if (wavPath != NULL && wavPath[0] != '\0')
+        WavOpen(wavPath);
 
 #ifndef _WIN32
     {
@@ -221,6 +334,10 @@ static int RunHeadless(unsigned long frameCount)
             CreateScriptedWildMon(SPECIES_SENTRET, 3, ITEM_NONE);
             BattleSetup_StartScriptedWildBattle();
         }
+        if (gbsFrame != 0 && frame == gbsFrame)
+            FlagSet(FLAG_SYS_GBS_ENABLED);
+        gAudioLogFrame = frame;
+        HeadlessStartSongs(songs, frame, gbsFrame != 0 && frame >= gbsFrame);
 #ifndef _WIN32
         // A frame that never finishes ends the run with SIGALRM, which a
         // debugger reports with the place it was stuck.
@@ -235,6 +352,9 @@ static int RunHeadless(unsigned long frameCount)
         if (HeadlessWantsShot(shots, every, frame))
             HeadlessSaveShot(frame);
     }
+    WavClose();
+    if (gAudioLog)
+        AudioLogSummary();
     printf("headless: ran %lu frames\n", frameCount);
     return 0;
 }
@@ -333,6 +453,7 @@ int main(int argc, char **argv)
     UpdateInternalClock();
 
     sHeadless = headlessFrames != NULL;
+    gAudioLog = getenv("HNS_AUDIO_LOG") != NULL;
 
     AgbMain();
 
@@ -473,8 +594,12 @@ void Platform_ReadFlash(u16 sectorNum, u32 offset, u8 *dest, u32 size)
 
 void Platform_QueueAudio(float *audioBuffer, s32 samplesPerFrame)
 {
+    // samplesPerFrame is a size in bytes.
     if (sHeadless)
+    {
+        WavWrite(audioBuffer, samplesPerFrame);
         return;
+    }
     SDL_QueueAudio(1, audioBuffer, samplesPerFrame);
 }
 

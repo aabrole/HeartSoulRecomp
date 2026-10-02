@@ -1,12 +1,15 @@
 #ifdef PORTABLE
+#include <stdio.h>
 #include "mp2k_common.h"
 #include "music_player.h"
 #include "gba/types.h"
 #include "gba/m4a_internal.h"
 #include "platform.h"
+#include "gbs.h"
 
 // Don't uncomment this. vvvvv
 // #define POKEMON_EXTENSIONS
+// (mp2k_common.h already defines it, along with NOT_GBA.)
 #define MIXED_AUDIO_BUFFER_SIZE 4907
 
 static u32 MidiKeyToFreq(struct WaveData2 *wav, u8 key, u8 pitch);
@@ -17,6 +20,70 @@ extern const u8 gScaleTable[];
 extern const u32 gFreqTable[];
 extern const u8 gClockTable[];
 float audioBuffer [MIXED_AUDIO_BUFFER_SIZE];
+
+// Heart & Soul's Game Boy sound engine, src/gbs.c. A track that runs the GBS
+// switch command (0xB6) is handed over to it; see MP2KPlayerMain.
+bool32 GBSMain(struct MusicPlayerInfo *info, struct MusicPlayerTrack *track);
+void GBSTrack_Stop(struct MusicPlayerTrack *track);
+
+// The sound code looks at the same memory through three sets of structs: the
+// game's (gba/m4a_internal.h), this player's (music_player.h, sound_mixer.h)
+// and the Game Boy sound engine's (gbs.h). They only work while they line up.
+#ifndef VER_64BIT
+_Static_assert(sizeof(struct MP2KTrack) == sizeof(struct MusicPlayerTrack), "MP2KTrack size");
+_Static_assert(offsetof(struct MP2KTrack, chan) == offsetof(struct MusicPlayerTrack, chan), "MP2KTrack chan");
+_Static_assert(offsetof(struct MP2KTrack, ct) == offsetof(struct MusicPlayerTrack, unk_3C), "MP2KTrack ct");
+_Static_assert(offsetof(struct MP2KTrack, cmdPtr) == offsetof(struct MusicPlayerTrack, cmdPtr), "MP2KTrack cmdPtr");
+_Static_assert(sizeof(struct GBSTrack) <= sizeof(struct MusicPlayerTrack), "GBSTrack size");
+_Static_assert(offsetof(struct GBSTrack, volX) == offsetof(struct MusicPlayerTrack, volX), "GBSTrack volX");
+_Static_assert(offsetof(struct GBSTrack, chan) == offsetof(struct MusicPlayerTrack, chan), "GBSTrack chan");
+_Static_assert(offsetof(struct MP2KPlayerState, tracks) == offsetof(struct MusicPlayerInfo, tracks), "MP2KPlayerState tracks");
+_Static_assert(offsetof(struct MP2KPlayerState, nextPlayer) == offsetof(struct MusicPlayerInfo, musicPlayerNext), "MP2KPlayerState nextPlayer");
+_Static_assert(sizeof(struct MixerSource) == sizeof(struct SoundChannel), "MixerSource size");
+_Static_assert(sizeof(struct MixerSource) == sizeof(struct CgbChannel), "CgbChannel size");
+_Static_assert(offsetof(struct MixerSource, ct) == offsetof(struct SoundChannel, count), "MixerSource ct");
+_Static_assert(offsetof(struct MixerSource, track) == offsetof(struct SoundChannel, track), "MixerSource track");
+_Static_assert(offsetof(struct MixerSource, cgbStatus) == offsetof(struct CgbChannel, modify), "CgbChannel modify");
+_Static_assert(offsetof(struct SoundMixerState, chans) == offsetof(struct SoundInfo, chans), "SoundMixerState chans");
+_Static_assert(offsetof(struct SoundMixerState, outBuffer) == offsetof(struct SoundInfo, pcmBuffer), "SoundMixerState outBuffer");
+#endif
+
+// Diagnostics for HNS_AUDIO_LOG. They answer "did this song produce notes" and
+// "did the data ask for something this player does not do" without ears.
+bool8 gAudioLog = FALSE;
+u32 gAudioLogFrame;
+static u32 sLogSongStarts;
+static u32 sLogDirectNotes;
+static u32 sLogCgbNotes;
+static u32 sLogDroppedNotes;
+static u32 sLogGbsSwitches;
+static u32 sLogGbsTicks;
+static u8 sLogSeenCommands[256 / 8];
+static u8 sLogSeenVoiceTypes[256 / 8];
+
+static bool32 AudioLogFirstTime(u8 *seen, u8 value) {
+    if (seen[value / 8] & (1 << (value % 8))) {
+        return FALSE;
+    }
+    seen[value / 8] |= 1 << (value % 8);
+    return TRUE;
+}
+
+void AudioLogSongStart(u32 songNum, bool32 gbsEnabled, const void *header, u32 player) {
+    const struct SongHeader *songHeader = header;
+
+    sLogSongStarts++;
+    fprintf(stderr, "audio: frame %u: song %u starts on player %u, %u tracks, reverb %#x%s\n",
+            (unsigned)gAudioLogFrame, (unsigned)songNum, (unsigned)player, songHeader->trackCount,
+            songHeader->reverb, gbsEnabled ? ", GBS lookup on" : "");
+}
+
+void AudioLogSummary(void) {
+    fprintf(stderr, "audio: %u song starts, %u direct sound notes, %u CGB notes, %u notes dropped, "
+            "%u GBS switches, %u GBS track ticks\n", (unsigned)sLogSongStarts, (unsigned)sLogDirectNotes,
+            (unsigned)sLogCgbNotes, (unsigned)sLogDroppedNotes, (unsigned)sLogGbsSwitches,
+            (unsigned)sLogGbsTicks);
+}
 
 u32 umul3232H32(u32 a, u32 b) {
     u64 result = a;
@@ -399,7 +466,23 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
                 currentTrack->instrument.type = 1;
             }
             
-            while (currentTrack->wait == 0) {
+            for (;;) {
+                // Upper nibble of patternLevel is gbsIdentifier: the track belongs
+                // to the Game Boy sound engine, which runs once per tick and
+                // returns FALSE when the track has ended.
+                if ((currentTrack->patternLevel >> 4) != 0) {
+                    if (gAudioLog) {
+                        sLogGbsTicks++;
+                    }
+                    if (!GBSMain((struct MusicPlayerInfo *)player, (struct MusicPlayerTrack *)currentTrack)) {
+                        MP2K_event_fine(player, currentTrack);
+                    }
+                    goto nextTrack;
+                }
+                if (currentTrack->wait != 0) {
+                    break;
+                }
+                
                 u8 event = *currentTrack->cmdPtr;
                 if (event < 0x80) {
                     event = currentTrack->runningStatus;
@@ -416,6 +499,14 @@ void MP2KPlayerMain(void *voidPtrPlayer) {
                     void (*eventFunc)(struct MP2KPlayerState *, struct MP2KTrack *);
                     player->cmd = event - 0xB1;
                     eventFunc = mixer->mp2kEventFuncTable[player->cmd];
+                    if (gAudioLog) {
+                        if (eventFunc == (void *)ply_gbs_switch) {
+                            sLogGbsSwitches++;
+                        } else if (eventFunc == MP2K_event_fine && event != 0xB1
+                                && AudioLogFirstTime(sLogSeenCommands, event)) {
+                            fprintf(stderr, "audio: command %#x has no handler and ends the track\n", event);
+                        }
+                    }
                     eventFunc(player, currentTrack);
                     
                     if (currentTrack->status == 0) {
@@ -512,6 +603,13 @@ returnEarly: ;
 }
 
 void TrackStop(struct MP2KPlayerState *player, struct MP2KTrack *track) {
+    if ((track->status & 0x80) && (track->patternLevel >> 4) != 0) {
+        // A Game Boy sound engine track. Keep the upper nibble, so the track is
+        // still handed to that engine if the player is resumed.
+        GBSTrack_Stop((struct MusicPlayerTrack *)track);
+        track->patternLevel &= 0xF0;
+        return;
+    }
     if (track->status & 0x80) {
         for (struct MixerSource *chan = track->chan; chan != NULL; chan = chan->next) {
             if (chan->status != 0) {
@@ -653,11 +751,35 @@ void MP2K_event_nxx(u8 clock, struct MP2KPlayerState *player, struct MP2KTrack *
         
     }
     
+    if (gAudioLog) {
+        if (chan == NULL) {
+            sLogDroppedNotes++;
+        } else if (cgbType != 0) {
+            sLogCgbNotes++;
+        } else {
+            sLogDirectNotes++;
+        }
+        if (AudioLogFirstTime(sLogSeenVoiceTypes, instrument->type)) {
+            fprintf(stderr, "audio: frame %u: first note with voice type %#x\n", (unsigned)gAudioLogFrame,
+                    instrument->type);
+        }
+        if (cgbType == 0 && chan != NULL) {
+            struct WaveData *wav = instrument->wav;
+
+            if (wav == NULL) {
+                fprintf(stderr, "audio: direct sound note with no sample\n");
+            } else if (wav->type > 1 || wav->size == 0) {
+                fprintf(stderr, "audio: sample with type %#x and size %u is not handled\n", wav->type,
+                        (unsigned)wav->size);
+            }
+        }
+    }
+
     if (chan == NULL) {
         return;
     }
     ClearChain(chan);
-    
+
     chan->prev = NULL;
     chan->next = track->chan;
     if (track->chan != NULL) {
@@ -764,8 +886,18 @@ void m4aSoundVSync(void)
             m4aBuffer += samplesPerFrame * (mixer->framesPerDmaCycle - (dmaCounter - 1));
         }
 
+        // The GBA adds the two direct sound channels and the CGB channels in
+        // hardware and clips the sum at full scale.
         for(u32 i = 0; i < samplesPerFrame; i++)
-            audioBuffer[i] = m4aBuffer[i] + cgbBuffer[i];
+        {
+            float sample = m4aBuffer[i] + cgbBuffer[i];
+
+            if (sample > 1.0f)
+                sample = 1.0f;
+            else if (sample < -1.0f)
+                sample = -1.0f;
+            audioBuffer[i] = sample;
+        }
 
         Platform_QueueAudio(audioBuffer, samplesPerFrame * 4);
         if((s8)(--mixer->dmaCounter) <= 0)
