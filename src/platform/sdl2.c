@@ -21,6 +21,10 @@
 #include "global.h"
 #include "platform.h"
 #include "main.h"
+#include "battle_setup.h"
+#include "script_pokemon_util.h"
+#include "constants/species.h"
+#include "constants/items.h"
 #include "rtc.h"
 #include "gba/defines.h"
 #include "gba/m4a_internal.h"
@@ -185,6 +189,8 @@ static int RunHeadless(unsigned long frameCount)
     const char *shots = getenv("HNS_SHOTS");
     const char *everyText = getenv("HNS_SHOT_EVERY");
     unsigned long every = everyText != NULL ? strtoul(everyText, NULL, 10) : 0;
+    const char *testBattleText = getenv("HNS_TEST_BATTLE");
+    unsigned long testBattleFrame = testBattleText != NULL ? strtoul(testBattleText, NULL, 10) : 0;
     unsigned long frame;
 
 #ifndef _WIN32
@@ -200,6 +206,14 @@ static int RunHeadless(unsigned long frameCount)
     for (frame = 1; frame <= frameCount; frame++)
     {
         keys = HeadlessKeysForFrame(script, frame);
+        // HNS_TEST_BATTLE=FRAME gives the player a Cyndaquil and starts a wild
+        // battle on that frame. The player must be standing in the overworld.
+        if (testBattleFrame != 0 && frame == testBattleFrame)
+        {
+            ScriptGiveMon(SPECIES_CYNDAQUIL, 10, ITEM_NONE);
+            CreateScriptedWildMon(SPECIES_SENTRET, 3, ITEM_NONE);
+            BattleSetup_StartScriptedWildBattle();
+        }
 #ifndef _WIN32
         // A frame that never finishes ends the run with SIGALRM, which a
         // debugger reports with the place it was stuck.

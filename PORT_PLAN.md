@@ -30,6 +30,14 @@ The dual-screen repo asks for a vanilla Emerald ROM at first launch because it
 does not ship game data in its APK. That gate only matters if we ever publish
 builds. For private builds on our own devices it does not apply.
 
+## Status
+
+Session 2 got the game running natively (see `PORT_LOG.md`). The route taken
+differs from the one described below: the shared-code changes came from
+NTx86's unfinished expansion port rather than from the dual-screen repo.
+Milestones M1 and most of M2 are done on Linux. The Android, widescreen and
+dual-screen steps below still stand, and the 32-bit decision held up.
+
 ## Why this is a port and not a 30 minute job
 
 The dual-screen repo says "currently no ROM hacks are supported". Its
