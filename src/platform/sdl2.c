@@ -23,6 +23,8 @@
 #include "main.h"
 #include "battle_setup.h"
 #include "script_pokemon_util.h"
+#include "overworld.h"
+#include "field_screen_effect.h"
 #include "constants/species.h"
 #include "constants/items.h"
 #include "rtc.h"
@@ -70,14 +72,36 @@ static void CloseSaveFile(void);
 static void UpdateInternalClock(void);
 
 static u16 keys;
-static uint16_t sFrameImage[DISPLAY_WIDTH * DISPLAY_HEIGHT];
+// Sized for the widest frame. Rows are packed at gRenderWidth.
+static uint16_t sFrameImage[MAX_RENDER_WIDTH * DISPLAY_HEIGHT];
 static bool sHeadless = false;
+
+// Widescreen: HNS_WIDESCREEN=1 renders 288x160 instead of 240x160. See
+// include/platform.h. Off by default. Screenshots are saved at the size
+// that was rendered.
+void Platform_SetWidescreen(bool32 enabled)
+{
+#ifdef RENDERER_EASY_DRAW
+    gRenderMargin = enabled ? WIDESCREEN_MARGIN : 0;
+#else
+    (void)enabled;
+    gRenderMargin = 0;
+#endif
+    gRenderWidth = DISPLAY_WIDTH + 2 * gRenderMargin;
+    if (sdlRenderer != NULL)
+        SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
+    if (sdlWindow != NULL)
+        SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale);
+}
 
 // Headless test mode, for running the game without a display or a person.
 //   HNS_HEADLESS_FRAMES=N   run N frames as fast as possible, then exit
 //   HNS_SHOTS=60,300        save shot_00060.bmp and shot_00300.bmp
 //   HNS_SHOT_EVERY=N        also save a shot every N frames
 //   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
+//   HNS_TEST_BATTLE=N       give a Cyndaquil and start a wild battle on frame N
+//   HNS_WARP=N:G:M:X:Y      on frame N, warp to map group G, map M, position X,Y
+//   HNS_WIDESCREEN=1        render 288x160 (also applies with a display)
 // Use with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy.
 static u16 HeadlessKeyFromName(const char *name, size_t len)
 {
@@ -143,8 +167,8 @@ static bool HeadlessWantsShot(const char *list, unsigned long every, unsigned lo
 static void HeadlessSaveShot(unsigned long frame)
 {
     char path[64];
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(sFrameImage, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                                              16, DISPLAY_WIDTH * sizeof(uint16_t), SDL_PIXELFORMAT_ABGR1555);
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(sFrameImage, gRenderWidth, DISPLAY_HEIGHT,
+                                                              16, gRenderWidth * sizeof(uint16_t), SDL_PIXELFORMAT_ABGR1555);
 
     if (surface == NULL)
         return;
@@ -191,6 +215,9 @@ static int RunHeadless(unsigned long frameCount)
     unsigned long every = everyText != NULL ? strtoul(everyText, NULL, 10) : 0;
     const char *testBattleText = getenv("HNS_TEST_BATTLE");
     unsigned long testBattleFrame = testBattleText != NULL ? strtoul(testBattleText, NULL, 10) : 0;
+    const char *warpText = getenv("HNS_WARP");
+    unsigned long warpFrame = 0;
+    int warpGroup = 0, warpMap = 0, warpX = 0, warpY = 0;
     unsigned long frame;
 
 #ifndef _WIN32
@@ -203,9 +230,19 @@ static int RunHeadless(unsigned long frameCount)
         sigaction(SIGALRM, &action, NULL);
     }
 #endif
+    if (warpText != NULL && sscanf(warpText, "%lu:%d:%d:%d:%d", &warpFrame, &warpGroup, &warpMap, &warpX, &warpY) != 5)
+        warpFrame = 0;
     for (frame = 1; frame <= frameCount; frame++)
     {
         keys = HeadlessKeysForFrame(script, frame);
+        // HNS_WARP gets a test to a map that scripted input cannot reach.
+        // The player must be standing in the overworld.
+        if (warpFrame != 0 && frame == warpFrame)
+        {
+            SetWarpDestination(warpGroup, warpMap, WARP_ID_NONE, warpX, warpY);
+            DoWarp();
+            ResetInitialPlayerAvatarState();
+        }
         // HNS_TEST_BATTLE=FRAME gives the player a Cyndaquil and starts a wild
         // battle on that frame. The player must be standing in the overworld.
         if (testBattleFrame != 0 && frame == testBattleFrame)
@@ -234,6 +271,7 @@ static int RunHeadless(unsigned long frameCount)
 int main(int argc, char **argv)
 {
     const char *headlessFrames = getenv("HNS_HEADLESS_FRAMES");
+    const char *widescreen = getenv("HNS_WIDESCREEN");
 
     // Open an output console on Windows
 #ifdef _WIN32
@@ -244,13 +282,16 @@ int main(int argc, char **argv)
 
     ReadSaveFile("pokeemerald.sav");
 
+    // Before the window exists, so it is created at the right size.
+    Platform_SetWidescreen(widescreen != NULL && strtoul(widescreen, NULL, 10) != 0);
+
     if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
         DBGPRINTF("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
 
-    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, DISPLAY_WIDTH * videoScale, DISPLAY_HEIGHT * videoScale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (sdlWindow == NULL)
     {
         DBGPRINTF("Window could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -267,12 +308,14 @@ int main(int argc, char **argv)
     SDL_SetRenderDrawColor(sdlRenderer, 255, 255, 255, 255);
     SDL_RenderClear(sdlRenderer);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-    SDL_RenderSetLogicalSize(sdlRenderer, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
 
+    // Created at the widest geometry. Only the leftmost gRenderWidth columns
+    // are uploaded and drawn, so widescreen can change without a new texture.
     sdlTexture = SDL_CreateTexture(sdlRenderer,
                                    SDL_PIXELFORMAT_ABGR1555,
                                    SDL_TEXTUREACCESS_STREAMING,
-                                   DISPLAY_WIDTH, DISPLAY_HEIGHT);
+                                   MAX_RENDER_WIDTH, DISPLAY_HEIGHT);
     if (sdlTexture == NULL)
     {
         DBGPRINTF("Texture could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -365,14 +408,18 @@ int main(int argc, char **argv)
 
             if (videoScaleChanged)
             {
-                SDL_SetWindowSize(sdlWindow, DISPLAY_WIDTH * videoScale, DISPLAY_HEIGHT * videoScale);
+                SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale);
                 videoScaleChanged = false;
             }
         }
 
         lastGameTime = curGameTime;
 
-        SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL);
+        {
+            SDL_Rect frameRect = {0, 0, gRenderWidth, DISPLAY_HEIGHT};
+
+            SDL_RenderCopy(sdlRenderer, sdlTexture, &frameRect, NULL);
+        }
         SDL_RenderPresent(sdlRenderer);
     }
 
@@ -556,8 +603,8 @@ void ProcessEvents(void)
                 unsigned int h = event.window.data2;
                 
                 videoScale = 0;
-                if (w / DISPLAY_WIDTH > videoScale)
-                    videoScale = w / DISPLAY_WIDTH;
+                if (w / gRenderWidth > videoScale)
+                    videoScale = w / gRenderWidth;
                 if (h / DISPLAY_HEIGHT > videoScale)
                     videoScale = h / DISPLAY_HEIGHT;
                 if (videoScale < 1)
@@ -639,9 +686,13 @@ u16 Platform_GetKeyInput(void)
 
 void VDraw(SDL_Texture *texture)
 {
-    memset(sFrameImage, 0, sizeof(sFrameImage));
+    // DrawFrame packs its rows at gRenderWidth, so upload that part of the
+    // (wider) texture.
+    SDL_Rect frameRect = {0, 0, gRenderWidth, DISPLAY_HEIGHT};
+
+    memset(sFrameImage, 0, gRenderWidth * DISPLAY_HEIGHT * sizeof(sFrameImage[0]));
     DrawFrame(sFrameImage);
-    SDL_UpdateTexture(texture, NULL, sFrameImage, DISPLAY_WIDTH * sizeof (Uint16));
+    SDL_UpdateTexture(texture, &frameRect, sFrameImage, gRenderWidth * sizeof (Uint16));
     REG_VCOUNT = 161; // prep for being in VBlank period
 }
 
