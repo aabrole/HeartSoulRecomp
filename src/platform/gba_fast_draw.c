@@ -37,14 +37,14 @@ struct scanlineData {
     uint16_t winMask[DISPLAY_WIDTH];
     uint16_t bgMask[DISPLAY_WIDTH];
     //priority bookkeeping
-    char bgtoprio[4]; //background to priority
-    char prioritySortedBgs[4][4];
-    char prioritySortedBgsCount[4];
+    signed char bgtoprio[4]; //background to priority
+    signed char prioritySortedBgs[4][4];
+    signed char prioritySortedBgsCount[4];
 };
 
 struct bgPriority {
-    char priority;
-    char subPriority;
+    signed char priority;
+    signed char subPriority;
 };
 
 static const uint16_t bgMapSizes[][2] =
@@ -2555,7 +2555,7 @@ static void DrawScanline(uint16_t *pixels, uint16_t vcount)
         scanline.bgcnts[bgnum] = bgcnt;
         scanline.bgtoprio[bgnum] = priority = (bgcnt & 3);
         
-        char priorityCount = scanline.prioritySortedBgsCount[priority];
+        signed char priorityCount = scanline.prioritySortedBgsCount[priority];
         scanline.prioritySortedBgs[priority][priorityCount] = bgnum;
         scanline.prioritySortedBgsCount[priority]++;
     }
@@ -2565,7 +2565,7 @@ static void DrawScanline(uint16_t *pixels, uint16_t vcount)
     case 0:
         for (prnum = 3; prnum >= 0; prnum--)
         {
-            for (char prsub = scanline.prioritySortedBgsCount[prnum] - 1; prsub >= 0; prsub--)
+            for (signed char prsub = scanline.prioritySortedBgsCount[prnum] - 1; prsub >= 0; prsub--)
             {
                 bgnum = scanline.prioritySortedBgs[prnum][prsub];
                 if (isbgEnabled(bgnum))
@@ -2600,7 +2600,7 @@ static void DrawScanline(uint16_t *pixels, uint16_t vcount)
     case 1:
         for (prnum = 3; prnum >= 0; prnum--)
         {
-            for (char prsub = scanline.prioritySortedBgsCount[prnum] - 1; prsub >= 0; prsub--)
+            for (signed char prsub = scanline.prioritySortedBgsCount[prnum] - 1; prsub >= 0; prsub--)
             {
                 bgnum = scanline.prioritySortedBgs[prnum][prsub];
                 if (isbgEnabled(bgnum))

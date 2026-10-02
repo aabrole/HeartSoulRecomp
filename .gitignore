@@ -74,3 +74,6 @@ porymap.user.json
 tools/mid2gbs/.venv
 SDL2/
 SDL2.dll
+port/out/
+/pokehns32
+/pokehns64

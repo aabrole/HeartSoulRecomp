@@ -11,5 +11,4 @@ RUN dpkg --add-architecture armhf && apt-get update && \
       qemu-user gdb-multiarch \
       gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
     && rm -rf /var/lib/apt/lists/*
-ENV QEMU_LD_PREFIX=/usr/arm-linux-gnueabihf
 WORKDIR /src

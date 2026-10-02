@@ -211,6 +211,12 @@ static void InitMainCallbacks(void)
     SetMainCallback2(gInitialMainCB2);
     gSaveBlock2Ptr = &gSaveblock2.block;
     gPokemonStoragePtr = &gPokemonStorage.block;
+#ifdef PORTABLE
+    // The copyright screen reads a flag before the save pointers are set up.
+    // On a GBA that reads through a null pointer into the BIOS and gets junk;
+    // natively it is a crash.
+    gSaveBlock1Ptr = &gSaveblock1.block;
+#endif
 }
 
 static void CallCallbacks(void)

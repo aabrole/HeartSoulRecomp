@@ -3,6 +3,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
+#ifndef _WIN32
+#include <unistd.h>
+#include <signal.h>
+#include <ucontext.h>
+#endif
+#include <string.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -13,6 +20,7 @@
 
 #include "global.h"
 #include "platform.h"
+#include "main.h"
 #include "rtc.h"
 #include "gba/defines.h"
 #include "gba/m4a_internal.h"
@@ -22,7 +30,6 @@
 #include "platform/framedraw.h"
 #include "platform/system.h"
 
-extern void (*const gIntrTable[])(void);
 
 SDL_Thread *mainLoopThread;
 SDL_Window *sdlWindow;
@@ -58,8 +65,162 @@ static void CloseSaveFile(void);
 
 static void UpdateInternalClock(void);
 
+static u16 keys;
+static uint16_t sFrameImage[DISPLAY_WIDTH * DISPLAY_HEIGHT];
+static bool sHeadless = false;
+
+// Headless test mode, for running the game without a display or a person.
+//   HNS_HEADLESS_FRAMES=N   run N frames as fast as possible, then exit
+//   HNS_SHOTS=60,300        save shot_00060.bmp and shot_00300.bmp
+//   HNS_SHOT_EVERY=N        also save a shot every N frames
+//   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
+// Use with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy.
+static u16 HeadlessKeyFromName(const char *name, size_t len)
+{
+    static const struct { const char *name; u16 key; } names[] = {
+        {"A", A_BUTTON}, {"B", B_BUTTON}, {"START", START_BUTTON}, {"SELECT", SELECT_BUTTON},
+        {"L", L_BUTTON}, {"R", R_BUTTON}, {"UP", DPAD_UP}, {"DOWN", DPAD_DOWN},
+        {"LEFT", DPAD_LEFT}, {"RIGHT", DPAD_RIGHT},
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+    {
+        if (strlen(names[i].name) == len && strncmp(names[i].name, name, len) == 0)
+            return names[i].key;
+    }
+    return 0;
+}
+
+static u16 HeadlessKeysForFrame(const char *script, unsigned long frame)
+{
+    u16 result = 0;
+
+    while (script != NULL && *script != '\0')
+    {
+        char *end;
+        unsigned long start = strtoul(script, &end, 10);
+        unsigned long length = 2;
+        const char *name;
+        size_t nameLen;
+
+        if (*end == '+')
+            length = strtoul(end + 1, &end, 10);
+        if (*end != ':')
+            break;
+        name = end + 1;
+        nameLen = strcspn(name, ",");
+        if (frame >= start && frame < start + length)
+            result |= HeadlessKeyFromName(name, nameLen);
+        script = name + nameLen;
+        if (*script == ',')
+            script++;
+    }
+    return result;
+}
+
+static bool HeadlessWantsShot(const char *list, unsigned long every, unsigned long frame)
+{
+    if (every != 0 && frame % every == 0)
+        return true;
+    while (list != NULL && *list != '\0')
+    {
+        char *end;
+
+        if (strtoul(list, &end, 10) == frame)
+            return true;
+        if (*end != ',')
+            break;
+        list = end + 1;
+    }
+    return false;
+}
+
+static void HeadlessSaveShot(unsigned long frame)
+{
+    char path[64];
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(sFrameImage, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                                              16, DISPLAY_WIDTH * sizeof(uint16_t), SDL_PIXELFORMAT_ABGR1555);
+
+    if (surface == NULL)
+        return;
+    snprintf(path, sizeof(path), "shot_%05lu.bmp", frame);
+    // 24-bit, since few image tools read 16-bit bitmaps.
+    {
+        SDL_Surface *rgb = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_BGR24, 0);
+
+        if (rgb != NULL)
+        {
+            SDL_SaveBMP(rgb, path);
+            SDL_FreeSurface(rgb);
+        }
+    }
+    SDL_FreeSurface(surface);
+}
+
+#ifndef _WIN32
+// qemu's debugger stub only reports faults, so the watchdog turns a stuck
+// frame into one. "thread apply all bt" then shows where the game was.
+static void HeadlessWatchdog(int signum, siginfo_t *info, void *context)
+{
+    (void)signum;
+    (void)info;
+    fprintf(stderr, "headless: frame did not finish, callback2=%p state=%d\n", (void *)gMain.callback2, gMain.state);
+#if defined(__arm__) && defined(__linux__)
+    {
+        ucontext_t *uc = context;
+
+        fprintf(stderr, "headless: stuck at pc=%#lx lr=%#lx\n", uc->uc_mcontext.arm_pc, uc->uc_mcontext.arm_lr);
+    }
+#else
+    (void)context;
+#endif
+    *(volatile int *)0 = 0;
+}
+#endif
+
+static int RunHeadless(unsigned long frameCount)
+{
+    const char *script = getenv("HNS_INPUT");
+    const char *shots = getenv("HNS_SHOTS");
+    const char *everyText = getenv("HNS_SHOT_EVERY");
+    unsigned long every = everyText != NULL ? strtoul(everyText, NULL, 10) : 0;
+    unsigned long frame;
+
+#ifndef _WIN32
+    {
+        struct sigaction action;
+
+        memset(&action, 0, sizeof(action));
+        action.sa_sigaction = HeadlessWatchdog;
+        action.sa_flags = SA_SIGINFO;
+        sigaction(SIGALRM, &action, NULL);
+    }
+#endif
+    for (frame = 1; frame <= frameCount; frame++)
+    {
+        keys = HeadlessKeysForFrame(script, frame);
+#ifndef _WIN32
+        // A frame that never finishes ends the run with SIGALRM, which a
+        // debugger reports with the place it was stuck.
+        alarm(20);
+#endif
+        ENTER_VBLANK();
+        MainLoop();
+        VDraw(sdlTexture);
+        RunDMAsAndVBlank();
+        AudioUpdate();
+        if (HeadlessWantsShot(shots, every, frame))
+            HeadlessSaveShot(frame);
+    }
+    printf("headless: ran %lu frames\n", frameCount);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
+    const char *headlessFrames = getenv("HNS_HEADLESS_FRAMES");
+
     // Open an output console on Windows
 #ifdef _WIN32
     AllocConsole() ;
@@ -128,13 +289,24 @@ int main(int argc, char **argv)
         SDL_PauseAudio(0);
     }
 
-    AgbMain();
-
-    double accumulator = 0.0;
-
     memset(&internalClock, 0, sizeof(internalClock));
     internalClock.status = SIIRTCINFO_24HOUR;
     UpdateInternalClock();
+
+    sHeadless = headlessFrames != NULL;
+
+    AgbMain();
+
+    if (sHeadless)
+    {
+        int result = RunHeadless(strtoul(headlessFrames, NULL, 10));
+
+        CloseSaveFile();
+        SDL_Quit();
+        return result;
+    }
+
+    double accumulator = 0.0;
 
     bool isGameStepDrawn = false;
     while (isRunning)
@@ -261,6 +433,8 @@ void Platform_ReadFlash(u16 sectorNum, u32 offset, u8 *dest, u32 size)
 
 void Platform_QueueAudio(float *audioBuffer, s32 samplesPerFrame)
 {
+    if (sHeadless)
+        return;
     SDL_QueueAudio(1, audioBuffer, samplesPerFrame);
 }
 
@@ -290,8 +464,6 @@ case KEY_##key:  keys &= ~key; break;
 
 #define HANDLE_KEYDOWN(key) \
 case KEY_##key:  keys |= key; break;
-
-static u16 keys;
 
 void ProcessEvents(void)
 {
@@ -453,11 +625,9 @@ u16 Platform_GetKeyInput(void)
 
 void VDraw(SDL_Texture *texture)
 {
-    static uint16_t image[DISPLAY_WIDTH * DISPLAY_HEIGHT];
-
-    memset(image, 0, sizeof(image));
-    DrawFrame(image);
-    SDL_UpdateTexture(texture, NULL, image, DISPLAY_WIDTH * sizeof (Uint16));
+    memset(sFrameImage, 0, sizeof(sFrameImage));
+    DrawFrame(sFrameImage);
+    SDL_UpdateTexture(texture, NULL, sFrameImage, DISPLAY_WIDTH * sizeof (Uint16));
     REG_VCOUNT = 161; // prep for being in VBlank period
 }
 

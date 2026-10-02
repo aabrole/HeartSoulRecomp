@@ -75,7 +75,8 @@ struct MixerSource {
     u32 blockCount; // bdpcm block count
 };
 
-enum { MAX_SAMPLE_CHANNELS = 12 };
+// Must equal MAX_DIRECTSOUND_CHANNELS: this struct is another view of struct SoundInfo.
+enum { MAX_SAMPLE_CHANNELS = 15 };
 enum { MIXED_AUDIO_BUFFER_SIZE = 4907 };
 
 struct SoundMixerState {

@@ -217,6 +217,33 @@ void NoCashGBAAssert(const char *pFile, s32 nLine, const char *pExpression, bool
 #if (LOG_HANDLER == LOG_HANDLER_MGBA_PRINT)
 #define MGBA_REG_DEBUG_MAX (256)
 
+#ifdef PORTABLE
+// There are no emulator debug registers in a native build, so log lines go to
+// standard error.
+bool32 MgbaOpen(void)
+{
+    return TRUE;
+}
+
+void MgbaClose(void)
+{
+}
+
+void MgbaPrintf(s32 level, const char *ptr, ...)
+{
+    char line[MGBA_REG_DEBUG_MAX];
+    va_list args;
+
+    va_start(args, ptr);
+    #if (PRETTY_PRINT_HANDLER == PRETTY_PRINT_MINI_PRINTF)
+    mini_vsnprintf(line, sizeof(line), ptr, args);
+    #else
+    vsnprintf(line, sizeof(line), ptr, args);
+    #endif
+    va_end(args);
+    fprintf(stderr, "[game %d] %s\n", (int)(level & 0x7), line);
+}
+#else
 bool32 MgbaOpen(void)
 {
     *REG_DEBUG_ENABLE = 0xC0DE;
@@ -244,6 +271,7 @@ void MgbaPrintf(s32 level, const char *ptr, ...)
     va_end(args);
     *REG_DEBUG_FLAGS = level | 0x100;
 }
+#endif
 
 void MgbaAssert(const char *pFile, s32 nLine, const char *pExpression, bool32 nStopProgram)
 {
