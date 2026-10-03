@@ -37,6 +37,7 @@ Your save is `Android/data/com.heartsoul.recomp/files/pokeemerald.sav` on the de
 - Very occasionally Android has closed the app while drawing the screen. Save often.
 - On the RG DS the bottom screen only appears if its system offers the second screen to apps the way the Thor does. Otherwise the game runs on one screen.
 - A few screens (title, menus, bag) stay 4:3 with black bars in widescreen, as designed.
+- Game launchers such as Cocoon Shell keep their own artwork for each game and may keep showing an old or default icon after an update. Set it in the launcher (in Cocoon: Edit Game Artwork, then Upload Icon) using [`port/icon/icon-512.png`](port/icon/icon-512.png).
 
 Report problems on the [Issues](../../issues) page with your device model and what you were doing.
 
