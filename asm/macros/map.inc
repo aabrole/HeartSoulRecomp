@@ -28,7 +28,7 @@
 	.byte \index
 	.2byte \gfx
 	.byte OBJ_KIND_NORMAL
-	.space 1  @ Padding
+	@ No padding here: Heart & Soul's ObjectEventTemplate is packed, so x is at 0x04.
 	.2byte \x, \y
 	.byte \elevation
 	.byte \movement_type

@@ -396,6 +396,38 @@ static int RunHeadless(unsigned long frameCount)
     return 0;
 }
 
+// About 100 ms at 42048 Hz.
+#define AUDIO_QUEUE_TARGET 4200
+
+static unsigned long sAudioUnderruns;
+
+// Logs frame pacing and audio underruns every 5 seconds, to logcat on Android
+// (tag SDL/APP). Underruns are passes that found the audio queue empty.
+static void ReportPerformance(Uint64 now)
+{
+    static Uint64 sWindowStart;
+    static unsigned long sPasses;
+    static unsigned long sUnderrunsAtStart;
+    double seconds;
+
+    if (sWindowStart == 0)
+    {
+        sWindowStart = now;
+        sUnderrunsAtStart = sAudioUnderruns;
+        return;
+    }
+    sPasses++;
+    seconds = (double)(now - sWindowStart) / (double)SDL_GetPerformanceFrequency();
+    if (seconds < 5.0)
+        return;
+    SDL_Log("perf: %.1f loop passes/s, %.2f ms each, audio underruns %lu, queued %u samples",
+            sPasses / seconds, seconds * 1000.0 / sPasses, sAudioUnderruns - sUnderrunsAtStart,
+            SDL_GetQueuedAudioSize(1) / 8);
+    sWindowStart = now;
+    sPasses = 0;
+    sUnderrunsAtStart = sAudioUnderruns;
+}
+
 int main(int argc, char **argv)
 {
     const char *headlessFrames = getenv("HNS_HEADLESS_FRAMES");
@@ -550,13 +582,24 @@ int main(int argc, char **argv)
                 accumulator -= fixedTimestep;
             }
 
-            //samples per frame is 701, that gets multipled by two when being queued and then multipled by four because samples are float32 which are 4 bytes long hence the divide by 8
-            //this number is then checked against samples per frame multipled by three rounded down to 2000 to give it enough margin of error while not desyncing
-            //this is all done to sync audio to gameplay
-            if (SDL_GetQueuedAudioSize(1)/8 < 2000)
+            // Each AudioUpdate mixes one GBA frame of sound (about 701 stereo
+            // float samples, 8 bytes each). Keep about 100 ms queued and refill
+            // it completely each pass, so a slow frame or a late vsync on a
+            // handheld does not empty the device buffer and leave a gap.
             {
-                AudioUpdate();
+                Uint32 queued = SDL_GetQueuedAudioSize(1) / 8;
+                int updates = 0;
+
+                if (queued == 0)
+                    sAudioUnderruns++;
+                while (queued < AUDIO_QUEUE_TARGET && updates < 8)
+                {
+                    AudioUpdate();
+                    queued = SDL_GetQueuedAudioSize(1) / 8;
+                    updates++;
+                }
             }
+            ReportPerformance(SDL_GetPerformanceCounter());
 
             if (videoScaleChanged)
             {
@@ -682,8 +725,8 @@ case KEY_##key:  keys &= ~key; break;
 #define HANDLE_KEYDOWN(key) \
 case KEY_##key:  keys |= key; break;
 
-// Game controllers. Buttons are mapped by position, as on a GBA: A is the
-// right face button and B the bottom one, whatever the pad prints on them.
+// Game controllers. Buttons follow the labels SDL reports: the button the pad
+// calls A is GBA A. On the AYN Thor that is the right face button, as on a GBA.
 static u16 sPadKeys;
 static bool sPadFastForward;
 
@@ -691,8 +734,8 @@ static u16 PadKeyFromButton(Uint8 button)
 {
     switch (button)
     {
-    case SDL_CONTROLLER_BUTTON_B:             return A_BUTTON;
-    case SDL_CONTROLLER_BUTTON_A:             return B_BUTTON;
+    case SDL_CONTROLLER_BUTTON_A:             return A_BUTTON;
+    case SDL_CONTROLLER_BUTTON_B:             return B_BUTTON;
     case SDL_CONTROLLER_BUTTON_START:         return START_BUTTON;
     case SDL_CONTROLLER_BUTTON_BACK:          return SELECT_BUTTON;
     case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:  return L_BUTTON;
