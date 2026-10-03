@@ -13,6 +13,70 @@ Rules for this log:
 
 ---
 
+## 2026-10-03, session 5: 64-bit (arm64-v8a), v0.1.1 icon, v0.2.0
+
+State at end of session: **v0.2.0 published** (pre-release) with both
+`arm64-v8a` and `armeabi-v7a` in one APK. The owner played it on the Thor,
+where Android picks the 64-bit build: continue from a 0.1.x save, walking,
+doors, battles with bottom-screen taps, save and reload. v0.1.1 only changed
+the icon (dual-screen handheld with a gold heart and a silver soul,
+`port/icon/make_icon.py`).
+
+### Why 64-bit
+
+A friend's Anbernic RG DS on GammaOS refused 0.1.x with "isn't compatible
+with your phone". The RK3568 can run 32-bit code, so the likely cause is a
+64-bit-only firmware; not confirmed (ask for "Supported ABIs" in CPU-Z). He
+also hit a battle crash under BlueStacks on a PC, which runs ARM code through
+translation and is not a reliable test.
+
+### How it was done
+
+Three agents: data (`port-arm64-data`: asm/data pointers to `ptrvalue`,
+`ptr_align`, `space64`, mapjson and mid2agb output, all 394 GBS song
+headers), C (`port-arm64-c`: pointer truncation, script/anim/GBS stepping by
+`DSIZEPTR`, `SCRIPT_EFFECT_TAG` width), and a lead (`port-arm64`: build,
+`port/build64.sh`, `port/gas-at-comments.py` for the AArch64 assembler,
+dual-ABI CMake with `game_data.o` and `game_data64.o`, `_setjmp` instead of
+`__builtin_setjmp`, text shift-by-32 fix, 16 KB page alignment). All merged
+into `port`. Headless 64-bit runs match 32-bit frame for frame.
+
+- **Saves:** the 64-bit build writes SaveBlock1 in the 32-bit layout
+  (`save.c`), and `SECRET_BASES_COUNT` is back to 20, so saves move freely
+  between the builds. The only pointer in saved data is
+  `ObjectEventTemplate.script`, saved as 0 and restored on Continue.
+- **32-bit bug fixed on the way:** `SetWordTaskArg` with index 2 or more
+  wrote into the next task.
+- **Stale generated data:** the first 0.2.0 crashed continuing an outdoor
+  save, because this checkout still had `data/layouts/layouts.inc` from the
+  old mapjson (8-byte map sizes). Generated map and music data now depend on
+  `$(MAPJSON)` and `$(MID)` (`map_data_rules.mk`, `audio_rules.mk`). After
+  pulling changes to a generator, a normal build now regenerates.
+- Door animation over-read fixed (`src/field_door.c`).
+
+### Tools added
+
+`port/build64.sh` builds `pokehns64` natively in the arm64 Docker image;
+`HNS_BIN=pokehns64` runs it with the headless scripts (no qemu).
+`port/check64.sh` checks every source for 64-bit pointer diagnostics.
+An Android emulator AVD `hns64` (arm64 Android 14, 64-bit only) is on the
+Mac for testing what 64-bit-only devices do.
+
+### Known issues
+
+- Not tried on an RG DS. Whether its bottom screen works is unknown.
+- `getmoverelearnerstate` emits 4 bytes where C reads 2 (upstream bug).
+- `GetSrcPtrFromSprite` still keeps a pointer in halfwords (unreached).
+- Earlier known issues from session 4 still apply.
+
+### Next
+
+1. RG DS report from the friend on 0.2.0.
+2. Keep collecting crash reports from players.
+3. Brightness or colour option for the "dim" night look.
+
+---
+
 ## 2026-10-03, session 4: on the Thor, crash fixes, v0.1.0 published
 
 State at end of session: **v0.1.0 is published** as a pre-release at
