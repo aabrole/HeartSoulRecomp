@@ -118,8 +118,9 @@ gbs_mom_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_mom_Ch2
-	.int gbs_mom_Ch3
-	.int gbs_mom_Ch4
+	ptrvalue gbs_mom_Ch2
+	ptrvalue gbs_mom_Ch3
+	ptrvalue gbs_mom_Ch4

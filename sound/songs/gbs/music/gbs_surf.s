@@ -731,8 +731,9 @@ gbs_surf_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_surf_Ch1
-	.int gbs_surf_Ch2
-	.int gbs_surf_Ch3
+	ptrvalue gbs_surf_Ch1
+	ptrvalue gbs_surf_Ch2
+	ptrvalue gbs_surf_Ch3

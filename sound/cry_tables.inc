@@ -1,4 +1,4 @@
-	.align 2
+	ptr_align
 gCryTable::
 .if P_CRIES_ENABLED == TRUE
 .if P_FAMILY_BULBASAUR == TRUE
@@ -2554,7 +2554,7 @@ gCryTable::
 .endif @ P_FAMILY_PECHARUNT
 .endif @ P_CRIES_ENABLED
 
-	.align 2
+	ptr_align
 gCryTable_Reverse::
 .if P_CRIES_ENABLED == TRUE
 .if P_FAMILY_BULBASAUR == TRUE

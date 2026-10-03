@@ -18,6 +18,7 @@ gbs_sfx_getcoin_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_sfx_getcoin_Ch5
+	ptrvalue gbs_sfx_getcoin_Ch5

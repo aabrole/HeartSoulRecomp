@@ -47,8 +47,9 @@ gbs_cry_fearow_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_cry_fearow_Ch5
-	.int gbs_cry_fearow_Ch6
-	.int gbs_cry_fearow_Ch8
+	ptrvalue gbs_cry_fearow_Ch5
+	ptrvalue gbs_cry_fearow_Ch6
+	ptrvalue gbs_cry_fearow_Ch8

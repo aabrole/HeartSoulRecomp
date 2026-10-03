@@ -210,7 +210,7 @@
 	enum _restart_channel @ 0xEA
 .macro restart_channel address:req
 	.byte _restart_channel
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _new_song @ 0xEB
@@ -232,7 +232,7 @@
 	enum _unknownmusic0xee @ 0xEE
 .macro unknownmusic0xee address:req
 	.byte _unknownmusic0xee
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _stereo_panning @ 0xEF
@@ -304,26 +304,26 @@
 .macro sound_jump_if condition:req, address:req
 	.byte _sound_jump_if
 	.byte \condition
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _sound_jump @ 0xFC
 .macro sound_jump address:req
 	.byte _sound_jump
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _sound_loop @ 0xFD
 .macro sound_loop count:req, address:req
 	.byte _sound_loop
 	.byte \count
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _sound_call @ 0xFE
 .macro sound_call address:req
 	.byte _sound_call
-	.4byte \address
+	ptrvalue \address
 .endm
 
 	enum _sound_ret @ 0xFF

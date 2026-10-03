@@ -42,7 +42,8 @@ gbs_sfx_evolutionintro_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_sfx_evolutionintro_Ch1
-	.int gbs_sfx_evolutionintro_Ch2
+	ptrvalue gbs_sfx_evolutionintro_Ch1
+	ptrvalue gbs_sfx_evolutionintro_Ch2

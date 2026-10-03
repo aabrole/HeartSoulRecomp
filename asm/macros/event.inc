@@ -635,7 +635,7 @@
 	.macro applymovement2 localId:req, movements:req
 		.byte SCR_OP_APPLYMOVEMENTNOFOLLOWER
 		.2byte \localId
-		.4byte \movements
+		ptrvalue \movements
 	.endm
 
 	@ Gives a named/gift Pokemon. 1=Kenya, 2=Shuckie, 3=Eevee, 4=Dratini
@@ -1975,9 +1975,9 @@
 	.byte \shouldSort
 	.2byte \initialSelected
 	.byte \callbacks
-	.byte (.Ldynmultichoice_\@_2 - .Ldynmultichoice_\@_1) / 4
+	.byte (.Ldynmultichoice_\@_2 - .Ldynmultichoice_\@_1) / PTR_SIZE
 .Ldynmultichoice_\@_1:
-	.4byte \argv
+	ptrvalue \argv
 .Ldynmultichoice_\@_2:
 	.endm
 
@@ -1991,14 +1991,14 @@
 
 	.macro dynmultipush name:req, id:req
 	.byte SCR_OP_DYNMULTIPUSH
-	.4byte \name
+	ptrvalue \name
 	.2byte \id
 	.endm
 
 	@ Gets the width of the specified message in the Braille font and sets the result to VAR_0x8004.
 	.macro getbraillestringwidth msg:req
 	.byte SCR_OP_GETBRAILLESTRINGWIDTH
-	.4byte \msg
+	ptrvalue \msg
 	.endm
 
 	.macro dynmultistack left:req, top:req, ignoreBPress:req, maxBeforeScroll:req, shouldSort:req, initialSelected:req, callbacks:req
@@ -2709,9 +2709,9 @@
 	.macro setmultitrainerbattle trainer_a:req, lose_text_a:req, trainer_b:req, lose_text_b:req, partnerId:req
 	callnative SetMultiTrainerBattle
 	.2byte \trainer_a
-	.4byte \lose_text_a
+	ptrvalue \lose_text_a
 	.2byte \trainer_b
-	.4byte \lose_text_b
+	ptrvalue \lose_text_b
 	.2byte \partnerId
 	.endm
 
@@ -2791,7 +2791,7 @@
 		.2byte \flags
 		.byte setScript
 		.2byte \battlePartner
-		.4byte \script
+		ptrvalue \script
 		updatefollowingmon
 		1:
 	.else
@@ -2805,7 +2805,7 @@
 		callnative ScriptCreateFollowerNPC
 		.2byte \gfx
 		.2byte \flags
-		.4byte \script
+		ptrvalue \script
 		.2byte \battlePartner
 	.else
 		.error "createfollowernpc unavailable with FNPC_ENABLE_NPC_FOLLOWERS defined as FALSE"
@@ -2860,7 +2860,7 @@
 	@ An SP_NAME_* constant can also be used, it'll take the name from gSpeakerNamesTable instead.
 	.macro setspeaker name:req
 	callnative SetSpeaker
-	.4byte \name
+	ptrvalue \name
 	.endm
 
 @ VS Seeker
@@ -2884,7 +2884,7 @@
 	@ Execute script if bag has TMs and/or HMs
 	.macro istmrelearneractive destination:req
 	callnative ScrCmd_istmrelearneractive, requests_effects=1
-	.4byte \destination
+	ptrvalue \destination
 	.endm
 
 	@ Sets a starting status for the next battle. Can be stacked.

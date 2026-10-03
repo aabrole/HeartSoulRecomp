@@ -677,8 +677,9 @@ gbs_ecruteakcity_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_ecruteakcity_Ch1
-	.int gbs_ecruteakcity_Ch2
-	.int gbs_ecruteakcity_Ch3
+	ptrvalue gbs_ecruteakcity_Ch1
+	ptrvalue gbs_ecruteakcity_Ch2
+	ptrvalue gbs_ecruteakcity_Ch3
