@@ -1116,11 +1116,7 @@ static void HallOfFame_PrintPlayerInfo(u8 unused1, u8 unused2)
 
 static void ClearVramOamPltt_LoadHofPal(void)
 {
-#ifdef PORTABLE
     uintptr_t vramOffset, oamOffset, plttOffset;
-#else
-    u32 vramOffset, oamOffset, plttOffset;
-#endif
     u32 vramSize, oamSize, plttSize;
 
     vramOffset = (VRAM);
@@ -1137,11 +1133,11 @@ static void ClearVramOamPltt_LoadHofPal(void)
         }
     }
 
-    oamOffset = OAM;
+    oamOffset = (uintptr_t)OAM;
     oamSize = OAM_SIZE;
     DmaFill32(3, 0, oamOffset, oamSize);
 
-    plttOffset = PLTT;
+    plttOffset = (uintptr_t)PLTT;
     plttSize = PLTT_SIZE;
     DmaFill16(3, 0, plttOffset, plttSize);
 

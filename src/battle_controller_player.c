@@ -2239,6 +2239,11 @@ static void PlayerHandleStatusXor(enum BattlerId battler)
 
 static void PlayerHandleDMA3Transfer(enum BattlerId battler)
 {
+#ifdef VER_64BIT
+    // The emitter is unused and packs the destination into 32 bits, which
+    // cannot hold a pointer here (BtlController_EmitDMA3Transfer is not built).
+    BtlController_Complete(battler);
+#else
     u32 dstArg = gBattleResources->bufferA[battler][1]
             | (gBattleResources->bufferA[battler][2] << 8)
             | (gBattleResources->bufferA[battler][3] << 16)
@@ -2246,7 +2251,7 @@ static void PlayerHandleDMA3Transfer(enum BattlerId battler)
     u16 sizeArg = gBattleResources->bufferA[battler][5] | (gBattleResources->bufferA[battler][6] << 8);
 
     const u8 *src = &gBattleResources->bufferA[battler][7];
-    u8 *dst = (u8 *)(dstArg);
+    u8 *dst = (u8 *)(uintptr_t)(dstArg);
     u32 size = sizeArg;
 
     while (1)
@@ -2262,6 +2267,7 @@ static void PlayerHandleDMA3Transfer(enum BattlerId battler)
         size -= 0x1000;
     }
     BtlController_Complete(battler);
+#endif
 }
 
 static void PlayerHandlePlayBGM(enum BattlerId battler)

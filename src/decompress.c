@@ -180,7 +180,7 @@ u32 IsLZ77Data(const void *ptr, u32 minSize, u32 maxSize)
     const u8 *data = ptr;
     u32 size;
     // Compressed data must be word aligned
-    if (((u32)ptr) & 3)
+    if (((uintptr_t)ptr) & 3)
         return 0;
     // Check LZ77 header byte
     // See https://problemkaputt.de/gbatek.htm#biosdecompressionfunctions

@@ -860,7 +860,7 @@ static void AnimSuperpowerRock(struct Sprite *sprite)
     sprite->y = 120;
 
     sprite->data[0] = gBattleAnimArgs[3];
-    StorePointerInVars(&sprite->ptr.uintPtr, (void *)(sprite->y << 8));
+    StorePointerInVars(&sprite->ptr.uintPtr, (void *)(intptr_t)(sprite->y << 8));
 
     sprite->data[6] = gBattleAnimArgs[1];
     sprite->oam.tileNum += gBattleAnimArgs[2] * 4;
