@@ -70,6 +70,8 @@ target_link_libraries(main PRIVATE SDL2::SDL2 m log)
 
 option(HNS_ASAN "Build the game with AddressSanitizer" OFF)
 if(HNS_ASAN)
-    target_compile_options(main PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    # Recover: report every error and keep running, so one harmless read does
+    # not stop a session that is hunting for something else.
+    target_compile_options(main PRIVATE -fsanitize=address -fsanitize-recover=address -fno-omit-frame-pointer)
     target_link_options(main PRIVATE -fsanitize=address)
 endif()

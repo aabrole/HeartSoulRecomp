@@ -672,8 +672,17 @@ static void NewGameHnsSpeech_SetDefaultPlayerName(u8 nameId)
         name = sMalePresetNames[nameId];
     else
         name = sFemalePresetNames[nameId];
+#ifdef UBFIX
+    // The preset names are shorter than PLAYER_NAME_LENGTH. Stop at the end
+    // of the name instead of copying the bytes that follow it.
+    for (i = 0; i < PLAYER_NAME_LENGTH && name[i] != EOS; i++)
+        gSaveBlock2Ptr->playerName[i] = name[i];
+    for (; i < PLAYER_NAME_LENGTH; i++)
+        gSaveBlock2Ptr->playerName[i] = EOS;
+#else
     for (i = 0; i < PLAYER_NAME_LENGTH; i++)
         gSaveBlock2Ptr->playerName[i] = name[i];
+#endif
     gSaveBlock2Ptr->playerName[PLAYER_NAME_LENGTH] = EOS;
 }
 
