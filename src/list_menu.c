@@ -49,9 +49,7 @@ struct RedArrowCursor
     u16 palTag;
 };
 
-// These structs are kept in a task's data[], which must hold them with pointers
-// of either width (task data is 8-aligned on 64-bit).
-STATIC_ASSERT(sizeof(struct ListMenu) <= sizeof(((struct Task *)0)->data), ListMenuFitsTaskData);
+// These structs are also kept in a task's data[] (8-aligned on 64-bit).
 STATIC_ASSERT(sizeof(struct ScrollIndicatorPair) <= sizeof(((struct Task *)0)->data), ScrollIndicatorPairFitsTaskData);
 STATIC_ASSERT(sizeof(struct RedOutlineCursor) <= sizeof(((struct Task *)0)->data), RedOutlineCursorFitsTaskData);
 

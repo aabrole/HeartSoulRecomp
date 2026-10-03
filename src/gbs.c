@@ -352,8 +352,8 @@ static u8 ProcessCommands(struct MusicPlayerInfo *info, struct GBSTrack *track)
                 track->pan = *track->nextInstruction++;
                 break;
             case JumpIf:
-                // Not implemented
-                track->nextInstruction += 5;
+                // Not implemented. Skip the condition and the address.
+                track->nextInstruction += 1 + DSIZEPTR;
                 break;
             case Jump:
                 track->nextInstruction = T1_READ_PTR(track->nextInstruction);
@@ -374,7 +374,7 @@ static u8 ProcessCommands(struct MusicPlayerInfo *info, struct GBSTrack *track)
                     else if (loopCount != 0 && track->loopCounter != 0)
                     {
                         track->loopCounter = 0;
-                        track->nextInstruction += 4;
+                        track->nextInstruction += DSIZEPTR;
                     }
                 }
                 else
@@ -390,7 +390,7 @@ static u8 ProcessCommands(struct MusicPlayerInfo *info, struct GBSTrack *track)
                     else if (loopCount != 0 && track->loopCounter2 != 0)
                     {
                         track->loopCounter2 = 0;
-                        track->nextInstruction += 4;
+                        track->nextInstruction += DSIZEPTR;
                     }
                 }
                 break;
@@ -398,7 +398,7 @@ static u8 ProcessCommands(struct MusicPlayerInfo *info, struct GBSTrack *track)
             case Call:
                 if (track->returnLocation == NULL)
                 {
-                    track->returnLocation = track->nextInstruction + 4;
+                    track->returnLocation = track->nextInstruction + DSIZEPTR;
                     track->nextInstruction = T1_READ_PTR(track->nextInstruction);
                 }
                 break;

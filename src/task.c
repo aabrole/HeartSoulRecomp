@@ -55,7 +55,11 @@ u8 CreateTask(TaskFunc func, u8 priority)
         }
     }
 
+#ifdef PORTABLE
+    assertf(FALSE, "tasks full (%p)", func);
+#else
     assertf(FALSE, "tasks full (0x%x)", func);
+#endif
 
     return 0;
 }
