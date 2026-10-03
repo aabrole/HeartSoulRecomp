@@ -40,7 +40,7 @@ MID_CFG_PATH := $(MID_SUBDIR)/midi.cfg
 
 # $1: Source path no extension, $2 Options
 define MID_RULE
-$(MID_ASM_DIR)/$1.s: $(MID_SUBDIR)/$1.mid $(MID_CFG_PATH) $(EXPANSION_BATTLE_CONFIG)
+$(MID_ASM_DIR)/$1.s: $(MID_SUBDIR)/$1.mid $(MID_CFG_PATH) $(EXPANSION_BATTLE_CONFIG) $(MID)
 	$(MID) $$< $$@ $2
 endef
 #                            source path,                             remaining text (options)
