@@ -15,8 +15,14 @@ Anbernic RG DS.
 ## Rules
 
 - `master` is pristine HnS upstream. All work goes on `port`.
-- Never commit or upload a ROM, a save, or a built APK or binary.
-- The GitHub repo stays private.
+- Never commit a ROM, a save, a built APK or binary, or the signing key
+  (`android/keystore/`, `android/keystore.properties`).
+- APKs are published only as GitHub release assets, and only after the
+  owner has played that exact build on the Thor. The owner decides when a
+  release is published and which one is Latest. (Decided 2026-10-03: public
+  repo and public APK releases.)
+- Commits use the owner's GitHub noreply address
+  (8591368+aabrole@users.noreply.github.com), not a personal email.
 - Changes to shared game code (`src/`, `include/`, `data/`, `asm/`, `sound/`)
   go behind `#ifdef PORTABLE` so the GBA ROM still builds unchanged.
 - Test on the device before calling anything working. Do not send blind
