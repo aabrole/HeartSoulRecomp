@@ -1,6 +1,9 @@
 #ifdef RENDERER_EASY_DRAW
 #include "global.h"
 #include <stdbool.h>
+// stdlib.h clashes with the game's abs() macro.
+extern char *getenv(const char *name);
+extern long strtol(const char *str, char **end, int base);
 #include "platform.h"
 #include "platform/dma.h"
 
@@ -17,7 +20,7 @@
 #define getRedChannel(x) ((x >>  0) & 0x1F)
 #define getGreenChannel(x) ((x >>  5) & 0x1F)
 #define getBlueChannel(x) ((x >>  10) & 0x1F)
-#define isbgEnabled(x) ((REG_DISPCNT >> 8) & 0xF) & (1 << x)
+#define isbgEnabled(x) (((REG_DISPCNT >> 8) & 0xF & ~sLayerHide) & (1 << x))
 
 #define WINMASK_BG0    (1 << 0)
 #define WINMASK_BG1    (1 << 1)
@@ -29,10 +32,15 @@
 
 extern void (*const gIntrTable[])(void);
 
+// HNS_LAYER_HIDE=MASK hides layers for debugging: bits 0-3 are BG0-BG3, bit 4
+// is sprites. Read once by DrawFrame.
+static int sLayerHide;
+
 // See include/platform.h. Rows are gRenderWidth wide and buffer index 0 holds
 // game-space column -gRenderMargin.
 int gRenderWidth = DISPLAY_WIDTH;
 int gRenderMargin = 0;
+bool8 gRenderPillarbox = FALSE;
 
 struct scanlineData {
     uint16_t layers[4][MAX_RENDER_WIDTH];
@@ -472,6 +480,13 @@ static bool alphaBlendSelectTargetB(struct scanlineData* scanline, uint16_t* col
 // the window mask is built.
 static bool sMarginsLive;
 
+// HNS_LAYER_DEBUG=1 tints every pixel by the layer that drew it (BG0 red,
+// BG1 green, BG2 blue, BG3 yellow, sprites magenta, backdrop grey), to find
+// out what fills a part of the screen. Read once by DrawFrame.
+static int sLayerDebug = -1;
+static uint8_t sPixelLayer[MAX_RENDER_WIDTH];
+enum { LAYER_OBJ = 4, LAYER_BACKDROP = 5 };
+
 // Window registers can only name columns inside the 240px screen, so a game
 // that wants a full-width window (the overworld sets WIN0H to 0x00FF) cannot
 // ask for the margins too. On scanlines whose margins are live, an edge that
@@ -734,6 +749,8 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
     int xpos;
 
 
+    memset(sPixelLayer, LAYER_BACKDROP, sizeof(sPixelLayer));
+
     //initialize all priority bookkeeping data
     memset(scanline.layers, 0, sizeof(scanline.layers));
     memset(scanline.winMask, 0, sizeof(scanline.winMask));
@@ -878,7 +895,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
         }
     }
 
-    if (REG_DISPCNT & DISPCNT_OBJ_ON)
+    if ((REG_DISPCNT & DISPCNT_OBJ_ON) && !(sLayerHide & 0x10))
         DrawSprites(&scanline, vcount, windowsEnabled);
 
     //iterate trough every priority in order
@@ -935,6 +952,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
                     }
                     //write the pixel to scanline buffer output
                     pixels[xpos] = color;
+                    sPixelLayer[xpos] = bgnum;
                 }
             }
         }
@@ -949,6 +967,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
                         continue;
                 //draw the pixel
                 pixels[xpos] = src[xpos];
+                sPixelLayer[xpos] = LAYER_OBJ;
             }
         }
     }
@@ -963,10 +982,41 @@ uint16_t *memsetu16(uint16_t *dst, uint16_t fill, size_t count)
     }
 }
 
+static void TintByLayer(uint16_t *row)
+{
+    static const uint16_t tints[] = {
+        0x001F, // BG0 red
+        0x03E0, // BG1 green
+        0x7C00, // BG2 blue
+        0x03FF, // BG3 yellow
+        0x7C1F, // OBJ magenta
+        0x4210, // backdrop grey
+    };
+
+    for (int x = 0; x < gRenderWidth; x++)
+    {
+        uint16_t c = row[x];
+        uint16_t t = tints[sPixelLayer[x]];
+
+        row[x] = ((c >> 1) & 0x3DEF) + ((t >> 1) & 0x3DEF);
+    }
+}
+
 void DrawFrame(uint16_t *pixels)
 {
     int i;
     int j;
+    bool pillarbox = gRenderPillarbox;
+
+    gRenderPillarbox = FALSE;
+    if (sLayerDebug < 0)
+    {
+        const char *hide = getenv("HNS_LAYER_HIDE");
+
+        sLayerDebug = getenv("HNS_LAYER_DEBUG") != NULL;
+        if (hide != NULL)
+            sLayerHide = strtol(hide, NULL, 0);
+    }
 
     for (i = 0; i < DISPLAY_HEIGHT; i++)
     {
@@ -996,11 +1046,13 @@ void DrawFrame(uint16_t *pixels)
         }
 
         memsetu16(&pixels[i * gRenderWidth], backdropColor, gRenderWidth);
-        if (!DrawScanline(&pixels[i * gRenderWidth], i) && gRenderMargin != 0)
+        if ((!DrawScanline(&pixels[i * gRenderWidth], i) || pillarbox) && gRenderMargin != 0)
         {
             memsetu16(&pixels[i * gRenderWidth], 0, gRenderMargin);
             memsetu16(&pixels[i * gRenderWidth + gRenderMargin + DISPLAY_WIDTH], 0, gRenderMargin);
         }
+        if (sLayerDebug)
+            TintByLayer(&pixels[i * gRenderWidth]);
         
         REG_DISPSTAT |= INTR_FLAG_HBLANK;
 
