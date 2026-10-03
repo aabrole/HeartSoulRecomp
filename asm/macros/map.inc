@@ -52,13 +52,14 @@
 	.byte \index
 	.2byte \gfx
 	.byte OBJ_KIND_CLONE
-	.space 1  @ Padding
+	@ No padding here: ObjectEventTemplate is packed, so x is at 0x04 (as in object_event).
 	.2byte \x, \y
 	.byte \target_local_id
 	.space 3  @ Padding
 	.2byte \target_map_id & 0xFF  @ map num
 	.2byte \target_map_id >> 8    @ map group
-	.space 8  @ Padding
+	.space 8  @ script, flagId, filler
+	space64 4 @ script is pointer-sized on 64-bit
 	inc _num_npcs
 	.endm
 
