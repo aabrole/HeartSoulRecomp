@@ -1896,12 +1896,20 @@ static void ParseObjectEventScript(const u8 *script)
     }
     else if (Script_MatchesCallNative(script, NativeVsSeekerRematchId, TRUE))
     {
+#ifdef PORTABLE
+        ctx->scriptPtr = script + 1 + DSIZEPTR;
+#else
         ctx->scriptPtr = script + 5;
+#endif
         sDebugMenuListData->data[0] = ScriptPeekHalfword(ctx);
     }
     else if (Script_MatchesSpecial(script, SavePlayerParty) && Script_MatchesCallNative(script + 3, SetMultiTrainerBattle, FALSE))
     {
+#ifdef PORTABLE
+        ctx->scriptPtr = script + 4 + DSIZEPTR;
+#else
         ctx->scriptPtr = script + 8;
+#endif
         SetMultiTrainerBattle(ctx);
     }
     Free(ctx);

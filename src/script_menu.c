@@ -436,7 +436,12 @@ static void DrawMultichoiceMenuDynamic(u8 left, u8 top, u8 argc, struct ListMenu
     gTasks[taskId].data[2] = windowId;
     gTasks[taskId].data[5] = argc;
     gTasks[taskId].data[7] = maxBeforeScroll;
+#ifdef PORTABLE
+    // A native pointer may not fit in two halfwords.
+    SetWordTaskArg(taskId, 3, (uintptr_t)items);
+#else
     StoreWordInTwoHalfwords((u16*) &gTasks[taskId].data[3], (u32) items);
+#endif
     list = (void *) gTasks[gTasks[taskId].data[0]].data;
     ListMenuChangeSelectionFull(list, TRUE, FALSE, initialRow, TRUE);
 
@@ -573,7 +578,11 @@ static void Task_HandleScrollingMultichoiceInput(u8 taskId)
             RemoveScrollIndicatorArrowPair(gTasks[taskId].data[6]);
         }
 
+#ifdef PORTABLE
+        items = (void *)GetWordTaskArg(taskId, 3);
+#else
         LoadWordFromTwoHalfwords((u16*) &gTasks[taskId].data[3], (u32* )(&items));
+#endif
         FreeListMenuItems(items, gTasks[taskId].data[5]);
         TRY_FREE_AND_SET_NULL(sDynamicMenuEventScratchPad);
         DestroyListMenuTask(gTasks[taskId].data[0], NULL, NULL);

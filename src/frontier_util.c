@@ -3471,7 +3471,7 @@ void ShowBattleFrontierCaughtBannedSpecies(void)
     u32 inputTaskId = CreateTask(Task_BannedSpeciesWindowInput, 3);
     gTasks[inputTaskId].tWindowId = windowId;
     gSpecialVar_0x8006 = inputTaskId;
-    SetWordTaskArg(inputTaskId, tListPointerElemId, (u32)listItems);
+    SetWordTaskArg(inputTaskId, tListPointerElemId, (uintptr_t)listItems);
     u32 menuTaskId = ListMenuInit(&listTemplate, 0, 0);
     gTasks[inputTaskId].tMenuTaskId = menuTaskId;
     gTasks[inputTaskId].tArrowTaskId = TASK_NONE;

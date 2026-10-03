@@ -37,6 +37,15 @@ u32 ScriptReadWord(struct ScriptContext *ctx);
 u32 ScriptPeekWord(struct ScriptContext *ctx);
 u64 ScriptReadQuadWord(struct ScriptContext *ctx);
 uintptr_t ScriptReadPointer(struct ScriptContext *ctx);
+#ifdef PORTABLE
+uintptr_t ScriptPeekPointer(struct ScriptContext *ctx);
+// Pointer operands are 4 bytes on the GBA and pointer-sized natively.
+#define ScriptReadPtr(ctx) ScriptReadPointer(ctx)
+#define ScriptPeekPtr(ctx) ScriptPeekPointer(ctx)
+#else
+#define ScriptReadPtr(ctx) ScriptReadWord(ctx)
+#define ScriptPeekPtr(ctx) ScriptPeekWord(ctx)
+#endif
 void LockPlayerFieldControls(void);
 void UnlockPlayerFieldControls(void);
 bool8 ArePlayerFieldControlsLocked(void);

@@ -2906,7 +2906,7 @@ void BtlController_HandleIntroTrainerBallThrow(enum BattlerId battler, u16 tagTr
     taskId = CreateTask(Task_StartSendOutAnim, 5);
     gTasks[taskId].tBattlerId = battler;
     gTasks[taskId].tFramesToWait = framesToWait;
-    SetWordTaskArg(taskId, tControllerFunc_1, (uint32_t)(controllerCallback));
+    SetWordTaskArg(taskId, tControllerFunc_1, (uintptr_t)(controllerCallback));
 
     if (gBattleSpritesDataPtr->healthBoxesData[battler].partyStatusSummaryShown)
         gTasks[gBattlerStatusSummaryTaskId[battler]].func = Task_HidePartyStatusSummary;

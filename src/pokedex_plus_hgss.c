@@ -8605,7 +8605,11 @@ static void SetSearchRectHighlight(u8 flags, u8 x, u8 y, u8 width)
 {
     u16 i;
     u16 temp; //should be a pointer, but does not match as one
+#ifdef PORTABLE
+    uintptr_t ptr = (uintptr_t)GetBgTilemapBuffer(3);
+#else
     u32 ptr = (u32)GetBgTilemapBuffer(3); //same as above
+#endif
 
     for (i = 0; i < width; i++)
     {

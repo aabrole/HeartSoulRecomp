@@ -177,12 +177,21 @@ static void WindowFunc_ClearNamebox(u8 bg, u8 L, u8 T, u8 w, u8 h, u8 p)
 
 void SetSpeaker(struct ScriptContext *ctx)
 {
+#ifdef PORTABLE
+    uintptr_t arg = ScriptReadPointer(ctx);
+#else
     u32 arg = ScriptReadWord(ctx);
+#endif
     const u8 *speaker = NULL;
 
     if (arg < SP_NAME_COUNT)
         speaker = gSpeakerNamesTable[arg];
+#ifdef PORTABLE
+    // A native string can be anywhere in memory, not only in the ROM range.
+    else if (arg != 0)
+#else
     else if (arg >= ROM_START && arg < ROM_END)
+#endif
         speaker = (const u8 *)arg;
 
     gSpeakerName = speaker;

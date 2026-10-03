@@ -6421,7 +6421,7 @@ bool32 TryItemUseFusionChange(u8 taskId, TaskFunc task)
     if (targetSpecies != SPECIES_NONE)
     {
         gPartyMenuUseExitCallback = TRUE;
-        SetWordTaskArg(taskId, tNextFunc, (u32)task);
+        SetWordTaskArg(taskId, tNextFunc, (uintptr_t)task);
         gTasks[taskId].func = Task_TryItemUseFusionChange;
         gTasks[taskId].tState = 0;
         gTasks[taskId].tTargetSpecies = targetSpecies;
@@ -6874,7 +6874,7 @@ bool32 TryItemUseFormChange(u8 taskId, TaskFunc task)
     if (TryFormChange(mon, FORM_CHANGE_ITEM_USE))
     {
         gPartyMenuUseExitCallback = TRUE;
-        SetWordTaskArg(taskId, tNextFunc, (u32)task);
+        SetWordTaskArg(taskId, tNextFunc, (uintptr_t)task);
         gTasks[taskId].func = Task_TryItemUseFormChange;
         gTasks[taskId].tState = 0;
         gTasks[taskId].tTargetSpecies = GetMonData(mon, MON_DATA_SPECIES);
@@ -6924,7 +6924,7 @@ bool32 TryMultichoiceFormChange(u8 taskId)
     if (TryFormChange(mon, FORM_CHANGE_ITEM_USE_MULTICHOICE))
     {
         gPartyMenuUseExitCallback = TRUE;
-        SetWordTaskArg(taskId, tNextFunc, (u32)Task_ClosePartyMenuAfterText);
+        SetWordTaskArg(taskId, tNextFunc, (uintptr_t)Task_ClosePartyMenuAfterText);
         gTasks[taskId].func = Task_TryItemUseFormChange;
         gTasks[taskId].tState = 0;
         gTasks[taskId].tTargetSpecies = GetMonData(mon, MON_DATA_SPECIES);

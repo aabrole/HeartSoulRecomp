@@ -2928,23 +2928,23 @@ void GetFollowerAction(struct ScriptContext *ctx) // Essentially a big switch fo
     {
         emotion = gFollowerConditionalMessages[multi].emotion;
         ObjectEventEmote(objEvent, emotion);
-        ctx->data[0] = (u32) gFollowerConditionalMessages[multi].text;
+        ctx->data[0] = (uintptr_t) gFollowerConditionalMessages[multi].text;
         // text choices are spread across array; pick a random one
         if (gFollowerConditionalMessages[multi].textSpread)
         {
             for (i = 0; i < 4; i++)
             {
-                if (!((u32*)gFollowerConditionalMessages[multi].text)[i])
+                if (!((uintptr_t*)gFollowerConditionalMessages[multi].text)[i])
                     break;
             }
-            ctx->data[0] = i ? ((u32*)gFollowerConditionalMessages[multi].text)[Random() % i] : 0;
+            ctx->data[0] = i ? ((uintptr_t*)gFollowerConditionalMessages[multi].text)[Random() % i] : 0;
         }
         ScriptCall(ctx, gFollowerConditionalMessages[multi].script ? gFollowerConditionalMessages[multi].script : gFollowerBasicMessages[emotion].script);
         return;
     }
     // otherwise, a basic or C-based message was picked
     ObjectEventEmote(objEvent, emotion);
-    ctx->data[0] = (u32) gFollowerBasicMessages[emotion].messages[multi].text; // Load message text
+    ctx->data[0] = (uintptr_t) gFollowerBasicMessages[emotion].messages[multi].text; // Load message text
     ScriptCall(ctx, gFollowerBasicMessages[emotion].messages[multi].script ?
                         gFollowerBasicMessages[emotion].messages[multi].script :
                         gFollowerBasicMessages[emotion].script);
@@ -6774,7 +6774,7 @@ void IsFollowerFieldMoveUser(struct ScriptContext *ctx)
     *var = FALSE;
     if (follower && obj && !obj->invisible)
     {
-        u16 followIndex = ((u32)follower - (u32)gPlayerParty) / sizeof(struct Pokemon);
+        u16 followIndex = ((uintptr_t)follower - (uintptr_t)gPlayerParty) / sizeof(struct Pokemon);
         *var = userIndex == followIndex;
     }
 }

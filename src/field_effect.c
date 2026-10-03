@@ -921,8 +921,13 @@ void FieldEffectScript_LoadTiles(u8 **script)
 
 static bool32 ShouldFieldEffectBeFogBlended(u8 *script)
 {
+#ifdef PORTABLE
+    uintptr_t ptr = FieldEffectScript_ReadPtr(&script);
+    if (ptr == (uintptr_t)FldEff_TallGrass)
+#else
     u32 ptr = FieldEffectScript_ReadWord(&script);
     if (ptr == (u32)FldEff_TallGrass)
+#endif
         return FALSE;
     return TRUE;
 }
