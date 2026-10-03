@@ -13,6 +13,76 @@ Rules for this log:
 
 ---
 
+## 2026-10-03, session 4: on the Thor, crash fixes, v0.1.0 published
+
+State at end of session: **v0.1.0 is published** as a pre-release at
+https://github.com/aabrole/HeartSoulRecomp/releases/tag/v0.1.0 and the repo
+is public (the owner's decision, made knowing the APK contains the game's
+assets). The owner played the exact release APK on the Thor: continue from
+a save, three battles, saved again, no crash, no audio underruns.
+
+### Fixed on the device, with causes
+
+- **Library would not load**: the ROM header structs sat in `.text.*`
+  sections; with pointers in a PIC library that made the code segment
+  writable, which Android rejects. Kept out of `.text` natively.
+- **NPCs piled in a corner, crash leaving the house**: the NTx86 patch padded
+  `object_event` for an unpacked struct; Heart & Soul's
+  `ObjectEventTemplate` is packed. Padding removed (`asm/macros/map.inc`).
+- **Choppy audio**: 47 ms queue topped up once per pass. Now ~100 ms, refilled
+  fully each pass. A `perf:` line in logcat every 5 s shows underruns.
+- **A on the wrong button**: controllers now map by label.
+- **Saves lost**: writes stayed in the stdio buffer and Android kills apps.
+  Now fflush + fsync.
+- **Crash at the boot intro**: `IsPokemonCryPlaying(NULL)` before any cry.
+- **Battles crashed (the "null task 39" corruption)**: found with
+  AddressSanitizer on the device. `InitBtlControllersInternal` assigned
+  controllers to battlers 2 and 3 in single battles, whose positions are
+  `B_POSITION_ABSENT` (0xFF), writing `gBattlerControllerFuncs[255]`, which
+  landed in `gTasks` in the clang build. Now bounds-checked under UBFIX.
+- New-game preset names were read past their end (harmless, fixed).
+
+### Added
+
+- `port/build-apk.sh --asan`: AddressSanitizer build (wrap.sh, recover mode,
+  reports to logcat). `--release`: signed release APK. Key in
+  `android/keystore/`, `android/keystore.properties` (ignored; do not lose).
+- Bottom screen redrawn in the game's fonts with GBA-style panels
+  (`GbaFont.java`, `GbaText.java`, `BottomScreenView.java`); fonts and
+  widths are copied from `graphics/fonts` and `src/fonts.c` at build time.
+- Widescreen battle margins: BG3's hidden filler rows are replaced with
+  ground (`WidescreenFixBattleBg3Map` in `src/battle_bg.c`); summary screen
+  pillarboxed (`gRenderPillarbox`). Headless `HNS_CLOCK`, `HNS_LAYER_DEBUG`,
+  `HNS_LAYER_HIDE`.
+- Android chooses widescreen from the display's shape (4:3 gets 240x160).
+- App icon (`port/icon/make_icon.py`), README section, release notes.
+- Null-task diagnostics in `RunTasks`, game log lines to logcat.
+- Commit email scrubbed to the noreply address before going public.
+
+### Known issues
+
+- Once, after 40 minutes, Android aborted in `ViewRootImpl` /
+  `BLASTBufferQueue` ("decStrong() called too many times") on the UI thread.
+  Only seen in the ASan build so far; cause unknown. Watch for it.
+- Harmless over-reads still present: `sDoorAnimTiles_HnsCerulean` in
+  `src/field_door.c` (door animation reads past its tiles).
+- Widescreen: battle intro slide shows repeated ground in the margins for a
+  second; one-screen move backgrounds do not fill the margins.
+- Not tested on an RG DS. Areas past Route 29 untested.
+- Release APK cannot install over a debug build (different keys). On the
+  owner's Thor: back up the save, uninstall, install, launch once, then
+  `cat` the backup into the app-owned save file.
+
+### Next
+
+1. Collect reports from players and from the owner's continued play.
+2. Clean up the remaining ASan reads; keep an ASan build handy for crashes.
+3. Look into the BLASTBufferQueue abort if it shows again outside ASan.
+4. Test on an RG DS through a friend.
+5. Day/night "dim" colours: offer a brightness or colour-correction option.
+
+---
+
 ## 2026-10-02, session 3: Android app, audio, widescreen, bottom screen
 
 State at end of session: a debug APK builds with all four pieces in it
