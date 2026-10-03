@@ -36,7 +36,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm', "-DHNS_ASAN=${hnsAsan ? 'ON' : 'OFF'}"
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON', "-DHNS_ASAN=${hnsAsan ? 'ON' : 'OFF'}"
             }
         }
     }
