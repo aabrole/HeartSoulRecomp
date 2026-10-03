@@ -512,9 +512,10 @@ gbs_route3_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_route3_Ch1
-	.int gbs_route3_Ch2
-	.int gbs_route3_Ch3
-	.int gbs_route3_Ch4
+	ptrvalue gbs_route3_Ch1
+	ptrvalue gbs_route3_Ch2
+	ptrvalue gbs_route3_Ch3
+	ptrvalue gbs_route3_Ch4

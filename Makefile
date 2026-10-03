@@ -736,16 +736,8 @@ ifneq ($(NODEP),1)
 -include $(addprefix $(OBJ_DIR)/,$(DATA_ASM_SRCS:.s=.d))
 endif
 
-# Heart & Soul's GBS song headers write their pointers with .int. A 64-bit
-# build needs them pointer-sized and padded like struct SongHeader.
-ifeq ($(PORTABLE)$(IS64BIT),11)
-GBS_HEADER_CONV := sed -e 's/^\t\.global \(.*_Header\)$$/\tptr_align\n&/;s/^\t\.int voicegroup/\tspace64 4\n\tptrvalue voicegroup/;s/^\t\.int\t*/\tptrvalue /'
-else
-GBS_HEADER_CONV := cat
-endif
-
 $(GBS_BUILDDIR)/%.o: $(GBS_SUBDIR)/%.s
-	$(GBS_HEADER_CONV) $< | $(DATA_AS) $(ASFLAGS) -I sound -o $@ -
+	$(DATA_AS) $(ASFLAGS) -I sound -o $@ $<
 
 $(OBJ_DIR)/sym_bss.ld: sym_bss.txt
 	$(RAMSCRGEN) .bss $< ENGLISH > $@

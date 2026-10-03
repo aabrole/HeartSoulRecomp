@@ -348,7 +348,8 @@ gbs_hg_cinnabar_Header:
 	.byte 0	@ Priority
 	.byte 0	@ Reverb
 
-	.int voicegroup000
+	space64 4
+	ptrvalue voicegroup000
 
-	.int gbs_hg_cinnabar_Ch1
-	.int gbs_hg_cinnabar_Ch2
+	ptrvalue gbs_hg_cinnabar_Ch1
+	ptrvalue gbs_hg_cinnabar_Ch2

@@ -1975,11 +1975,7 @@
 	.byte \shouldSort
 	.2byte \initialSelected
 	.byte \callbacks
-	.if VER_64BIT == 1
-	.byte (.Ldynmultichoice_\@_2 - .Ldynmultichoice_\@_1) / 8
-	.else
-	.byte (.Ldynmultichoice_\@_2 - .Ldynmultichoice_\@_1) / 4
-	.endif
+	.byte (.Ldynmultichoice_\@_2 - .Ldynmultichoice_\@_1) / PTR_SIZE
 .Ldynmultichoice_\@_1:
 	ptrvalue \argv
 .Ldynmultichoice_\@_2:

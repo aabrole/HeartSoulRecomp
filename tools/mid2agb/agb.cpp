@@ -652,7 +652,7 @@ void PrintAgbFooter()
     int trackCount = g_agbTrack - 1;
 
     //std::fprintf(g_outputFile, "\n@******************************************************@\n");
-    std::fprintf(g_outputFile, "\t.align\t2\n");
+    std::fprintf(g_outputFile, "\tptr_align\n");
     std::fprintf(g_outputFile, "\n%s:\n", g_asmLabel.c_str());
     std::fprintf(g_outputFile, "\t.byte\t%u\n", trackCount);
     std::fprintf(g_outputFile, "\t.byte\t%u\n", 0);
