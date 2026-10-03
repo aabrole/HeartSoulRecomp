@@ -325,6 +325,13 @@ static void HeadlessWatchdog(int signum, siginfo_t *info, void *context)
 
         fprintf(stderr, "headless: stuck at pc=%#lx lr=%#lx\n", uc->uc_mcontext.arm_pc, uc->uc_mcontext.arm_lr);
     }
+#elif defined(__aarch64__) && defined(__linux__)
+    {
+        ucontext_t *uc = context;
+
+        fprintf(stderr, "headless: stuck at pc=%#llx lr=%#llx\n",
+                (unsigned long long)uc->uc_mcontext.pc, (unsigned long long)uc->uc_mcontext.regs[30]);
+    }
 #else
     (void)context;
 #endif
@@ -672,6 +679,22 @@ static void ReadSaveFile(char *path)
     if (sSaveFile == NULL)
     {
         sSaveFile = fopen(path, "w+b");
+    }
+    if (sSaveFile == NULL)
+    {
+        // Neither readable and writable nor creatable (a save copied in by
+        // another user, say). Load what can be read and do not save.
+        FILE *readOnly = fopen(path, "rb");
+        int bytesRead = 0;
+        fprintf(stderr, "save file %s cannot be opened for writing; saving is off\n", path);
+        if (readOnly != NULL)
+        {
+            bytesRead = fread(FLASH_BASE, 1, sizeof(FLASH_BASE), readOnly);
+            fclose(readOnly);
+        }
+        for (int i = bytesRead; i < sizeof(FLASH_BASE); i++)
+            FLASH_BASE[i] = 0xFF;
+        return;
     }
 
     fseek(sSaveFile, 0, SEEK_END);

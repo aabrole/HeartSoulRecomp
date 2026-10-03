@@ -805,11 +805,12 @@ inline static void GLYPH_COPY(u8 *windowTiles, u32 widthOffset, u32 x0, u32 y0, 
         mask = mask & 0x11111111;
         mask = mask * 0xF;
 
+#ifdef UBFIX
+        u32 pixels0 = pixels << shift0, pixels8 = shift8 >= 32 ? 0 : pixels >> shift8;
+        u32 mask0 = mask << shift0, mask8 = shift8 >= 32 ? 0 : mask >> shift8;
+#else
         u32 pixels0 = pixels << shift0, pixels8 = pixels >> shift8;
         u32 mask0 = mask << shift0, mask8 = mask >> shift8;
-#ifdef UBFIX
-        if (shift8 >= 32)
-            pixels8 = mask8 = 0;
 #endif
 
         u32 *alignedWindowTiles = (u32 *)((u8 *)alignedWindowTilesX + ((y / 8) * widthOffset) + ((y % 8) * 4));
