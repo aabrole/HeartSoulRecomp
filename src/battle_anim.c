@@ -1632,6 +1632,9 @@ void LoadMoveBg(u16 bgId)
     else
     {
         DecompressDataWithHeaderVram(gBattleAnimBackgroundTable[bgId].tilemap, (void *)BG_SCREEN_ADDR(26));
+#ifdef PORTABLE
+        WidescreenFixBattleBg3Map(gBattleAnimBackgroundTable[bgId].tilemap);
+#endif
         DecompressDataWithHeaderVram(gBattleAnimBackgroundTable[bgId].image, (void *)BG_CHAR_ADDR(2));
         LoadPalette(gBattleAnimBackgroundTable[bgId].palette, BG_PLTT_ID(2), PLTT_SIZE_4BPP);
     }

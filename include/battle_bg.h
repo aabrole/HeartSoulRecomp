@@ -22,5 +22,8 @@ void InitLinkBattleVsScreen(u8 taskId);
 void DrawBattleEntryBackground(void);
 bool8 LoadChosenBattleElement(u8 caseId);
 void DrawTerrainTypeBattleBackground(void);
+#ifdef PORTABLE
+void WidescreenFixBattleBg3Map(const u32 *tilemap);
+#endif
 
 #endif // GUARD_BATTLE_BG_H

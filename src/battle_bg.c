@@ -32,6 +32,9 @@
 #include "constants/battle_partner.h"
 #include "rtc.h"
 #include "data/battle_environment.h"
+#ifdef PORTABLE
+#include "platform.h"
+#endif
 
 // .rodata
 
@@ -894,6 +897,44 @@ static u32 GetBattleTerrainTimeOfDay(void)
     }
 }
 
+#ifdef PORTABLE
+// Widescreen (gRenderMargin != 0) shows 24 extra columns of BG3 either side
+// of the screen, because BG3 is the only battle layer with a 512px map. The
+// message box and menus are on BG0, which is 256px wide and so stays inside
+// the GBA screen. Rows 14-19 of BG3 sit behind the message box and were never
+// meant to be seen: the environment maps (and the 512px terrain move
+// backgrounds) fill them with a plain tile, which showed as grey or lavender
+// blocks beside the box. In widescreen they are given the ground of row 13
+// instead, so the scene carries on under the box and the box sits on it like
+// a panel.
+//
+// The message box covers these rows across the GBA's 240 columns, so the
+// picture there does not change. tilemap is the compressed map just written
+// to BG3's screen base; maps one screen wide are left alone, because the
+// battle shows those with BG3 set to 256px, which never reaches the margins.
+#define BATTLE_BG3_PANEL_TOP 14 // first map row behind the message box
+#define BATTLE_BG3_PANEL_END 20
+
+void WidescreenFixBattleBg3Map(const u32 *tilemap)
+{
+    u16 *map = (u16 *)BG_SCREEN_ADDR(26);
+    u32 x, y;
+
+    if (gRenderMargin == 0 || GetDecompressedDataSize(tilemap) < 2 * BG_SCREEN_SIZE)
+        return;
+
+    // Two 32x32 screens side by side: map columns 0-31, then 32-63.
+    for (y = BATTLE_BG3_PANEL_TOP; y < BATTLE_BG3_PANEL_END; y++)
+    {
+        for (x = 0; x < 32; x++)
+        {
+            map[y * 32 + x] = map[(BATTLE_BG3_PANEL_TOP - 1) * 32 + x];
+            map[0x400 + y * 32 + x] = map[0x400 + (BATTLE_BG3_PANEL_TOP - 1) * 32 + x];
+        }
+    }
+}
+#endif
+
 static void LoadBattleEnvironmentGfx(u16 environment)
 {
     const void *tileset, *tilemap, *palette;
@@ -925,6 +966,9 @@ static void LoadBattleEnvironmentGfx(u16 environment)
 
     DecompressDataWithHeaderVram(tileset, (void *)(BG_CHAR_ADDR(2)));
     DecompressDataWithHeaderVram(tilemap, (void *)(BG_SCREEN_ADDR(26)));
+#ifdef PORTABLE
+    WidescreenFixBattleBg3Map(tilemap);
+#endif
     LoadPalette(palette, BG_PLTT_ID(2), 3 * PLTT_SIZE_4BPP);
 }
 
@@ -1409,6 +1453,9 @@ bool8 LoadChosenBattleElement(u8 caseId)
         break;
     case 4:
         DecompressDataWithHeaderVram(gBattleEnvironmentInfo[GetBattleEnvironmentOverride()].background.tilemap, (void *)(BG_SCREEN_ADDR(26)));
+#ifdef PORTABLE
+        WidescreenFixBattleBg3Map(gBattleEnvironmentInfo[GetBattleEnvironmentOverride()].background.tilemap);
+#endif
         break;
     case 5:
         LoadPalette(gBattleEnvironmentInfo[GetBattleEnvironmentOverride()].palette, BG_PLTT_ID(2), 3 * PLTT_SIZE_4BPP);
