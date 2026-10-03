@@ -621,8 +621,15 @@ static void CopyDoorTilesToVram(const struct DoorGraphics *gfx, const struct Doo
 {
     if (gMapHeader.mapLayout->layoutVersion == LAYOUT_VERSION_HNS && gfx->tileset == &gTileset_AlolaIsland)
         CpuFastCopy(gfx->tiles + frame->offset, (void *)(VRAM + TILE_OFFSET_4BPP(DOOR_TILE_START_SIZE2)), 8 * TILE_SIZE_4BPP);
+#ifdef UBFIX
+    // A small door's frames are 4 tiles apart and only those 4 are drawn.
+    // Copying 8 reads past the end of the graphics on the last frame.
+    else if (gMapHeader.mapLayout->layoutVersion == LAYOUT_VERSION_HNS)
+        CpuFastCopy(gfx->tiles + frame->offset, (void *)(VRAM + TILE_OFFSET_4BPP(DOOR_TILE_START_HNS)), (gfx->size == 1 ? 4 : 8) * TILE_SIZE_4BPP);
+#else
     else if (gMapHeader.mapLayout->layoutVersion == LAYOUT_VERSION_HNS)
         CpuFastCopy(gfx->tiles + frame->offset, (void *)(VRAM + TILE_OFFSET_4BPP(DOOR_TILE_START_HNS)), 8 * TILE_SIZE_4BPP);
+#endif
     else if (gfx->size == 2 && !LAYOUT_USES_FRLG_DOORS(gMapHeader.mapLayout->layoutVersion))
         CpuFastCopy(gfx->tiles + frame->offset, (void *)(VRAM + TILE_OFFSET_4BPP(DOOR_TILE_START_SIZE2)), 16 * TILE_SIZE_4BPP);
     else
