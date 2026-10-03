@@ -5,7 +5,7 @@
 	.equiv NUM_TRACKS_SE3, 1
 
 	.bss
-	.align 2
+	ptr_align
 
 #ifndef PORTABLE
 gMPlayTrack_BGM::
