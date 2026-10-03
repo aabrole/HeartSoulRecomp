@@ -479,19 +479,34 @@ int main(int argc, char **argv)
 
     ReadSaveFile("pokeemerald.sav");
 
-    // Before the window exists, so it is created at the right size.
-#ifdef __ANDROID__
-    // There is no environment to set on Android, and its screens are wide.
-    Platform_SetWidescreen(widescreen == NULL || strtoul(widescreen, NULL, 10) != 0);
-#else
-    Platform_SetWidescreen(widescreen != NULL && strtoul(widescreen, NULL, 10) != 0);
-#endif
-
     if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0)
     {
         DBGPRINTF("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
+
+    // Before the window exists, so it is created at the right size.
+#ifdef __ANDROID__
+    // There is no environment to set on Android. Use widescreen only on a
+    // screen at least 16:10, so 4:3 handhelds (Anbernic RG DS) get the full
+    // GBA picture instead of a letterboxed wide one.
+    {
+        SDL_DisplayMode mode;
+        bool wide = true;
+
+        if (SDL_GetDesktopDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0)
+        {
+            int longSide = mode.w > mode.h ? mode.w : mode.h;
+            int shortSide = mode.w > mode.h ? mode.h : mode.w;
+
+            wide = longSide * 10 >= shortSide * 16;
+            SDL_Log("display %dx%d, widescreen %s", mode.w, mode.h, wide ? "on" : "off");
+        }
+        Platform_SetWidescreen(wide);
+    }
+#else
+    Platform_SetWidescreen(widescreen != NULL && strtoul(widescreen, NULL, 10) != 0);
+#endif
 
     sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale,
 #ifdef __ANDROID__

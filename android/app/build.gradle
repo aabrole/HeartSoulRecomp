@@ -6,6 +6,15 @@ plugins {
 // a device. Reports go to logcat. Not for normal play: it is slower.
 def hnsAsan = (project.findProperty('hns.asan') ?: 'false') == 'true'
 
+// Release builds are signed with the key in android/keystore, described by
+// android/keystore.properties. Both stay out of git. Without them a release
+// build is left unsigned.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace 'com.heartsoul.recomp'
     compileSdk 34
@@ -27,6 +36,26 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm', "-DHNS_ASAN=${hnsAsan ? 'ON' : 'OFF'}"
+            }
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
             }
         }
     }

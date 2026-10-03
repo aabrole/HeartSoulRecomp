@@ -84,3 +84,5 @@ android/app/build/
 android/app/.cxx/
 android/local.properties
 /build/android/
+android/keystore/
+android/keystore.properties
