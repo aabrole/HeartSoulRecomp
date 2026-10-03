@@ -151,6 +151,12 @@ OBJDUMP := $(PREFIX)objdump
 WINDRES := $(PREFIX)windres
 AS := $(PREFIX)as
 LD := $(PREFIX)ld
+# The game's assembly uses '@' comments, which only the 32-bit ARM assembler
+# accepts. Other assemblers get it through a wrapper that strips them.
+DATA_AS := $(AS)
+ifneq (,$(findstring aarch64,$(PREFIX)))
+  DATA_AS := python3 port/gas-at-comments.py $(AS)
+endif
 
 EXE :=
 ifeq ($(OS),Windows_NT)
@@ -694,7 +700,7 @@ endif
 endif
 
 $(ASM_BUILDDIR)/%.o: $(ASM_SUBDIR)/%.s
-	$(AS) $(ASFLAGS) -o $@ $<
+	$(DATA_AS) $(ASFLAGS) -o $@ $<
 	$(FIX_UNDERSCORE) $@
 
 $(ASM_BUILDDIR)/%.d: $(ASM_SUBDIR)/%.s
@@ -705,7 +711,7 @@ ifneq ($(NODEP),1)
 endif
 
 $(C_BUILDDIR)/%.o: $(C_SUBDIR)/%.s
-	$(PREPROC) $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+	$(PREPROC) $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(DATA_AS) $(ASFLAGS) -o $@
 
 $(C_BUILDDIR)/%.d: $(C_SUBDIR)/%.s
 	$(SCANINC) -M $@ $(INCLUDE_SCANINC_ARGS) -I "" $<
@@ -716,10 +722,10 @@ endif
 
 ifneq ($(PORTABLE),1)
 $(DATA_ASM_BUILDDIR)/%.o: $(DATA_ASM_SUBDIR)/%.s
-	$(PREPROC) -s $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+	$(PREPROC) -s $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(DATA_AS) $(ASFLAGS) -o $@
 else
 $(DATA_ASM_BUILDDIR)/%.o: $(DATA_ASM_SUBDIR)/%.s
-	$(PREPROC) $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(ASM_PSEUDO_OP_CONV) | $(AS) $(ASFLAGS) -o $@
+	$(PREPROC) $< charmap.txt | $(CPP) $(CPPFLAGS) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(ASM_PSEUDO_OP_CONV) | $(DATA_AS) $(ASFLAGS) -o $@
 	$(FIX_UNDERSCORE) $@
 endif
 
@@ -730,8 +736,16 @@ ifneq ($(NODEP),1)
 -include $(addprefix $(OBJ_DIR)/,$(DATA_ASM_SRCS:.s=.d))
 endif
 
+# Heart & Soul's GBS song headers write their pointers with .int. A 64-bit
+# build needs them pointer-sized and padded like struct SongHeader.
+ifeq ($(PORTABLE)$(IS64BIT),11)
+GBS_HEADER_CONV := sed -e 's/^\t\.global \(.*_Header\)$$/\tptr_align\n&/;s/^\t\.int voicegroup/\tspace64 4\n\tptrvalue voicegroup/;s/^\t\.int\t*/\tptrvalue /'
+else
+GBS_HEADER_CONV := cat
+endif
+
 $(GBS_BUILDDIR)/%.o: $(GBS_SUBDIR)/%.s
-	$(AS) $(ASFLAGS) -I sound -o $@ $<
+	$(GBS_HEADER_CONV) $< | $(DATA_AS) $(ASFLAGS) -I sound -o $@ -
 
 $(OBJ_DIR)/sym_bss.ld: sym_bss.txt
 	$(RAMSCRGEN) .bss $< ENGLISH > $@

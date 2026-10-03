@@ -15,10 +15,10 @@ $(shell mkdir -p $(SPECIAL_OUTDIRS) )
 
 # Assembly song compilation
 $(SONG_BUILDDIR)/%.o: $(SONG_SUBDIR)/%.s $(EXPANSION_BATTLE_CONFIG)
-	$(ASM_PSEUDO_OP_CONV) $< | $(AS) $(ASFLAGS) -I sound -o $@
+	$(ASM_PSEUDO_OP_CONV) $< | $(DATA_AS) $(ASFLAGS) -I sound -o $@
 	$(FIX_UNDERSCORE) $@
 $(MID_BUILDDIR)/%.o: $(MID_ASM_DIR)/%.s
-	$(ASM_PSEUDO_OP_CONV) $< | $(AS) $(ASFLAGS) -I sound -o $@
+	$(ASM_PSEUDO_OP_CONV) $< | $(DATA_AS) $(ASFLAGS) -I sound -o $@
 	$(FIX_UNDERSCORE) $@
 
 # Compressed cries
