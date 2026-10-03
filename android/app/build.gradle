@@ -35,4 +35,53 @@ android {
     }
 
     sourceSets.main.java.srcDirs += '../SDL2/android-project/app/src/main/java'
+    sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/fontAssets'))
+}
+
+// The bottom screen draws text with the game's own fonts. The glyph sheets
+// and charmap.txt are copied from the game's sources, and each font's glyph
+// widths are read out of src/fonts.c, so nothing is duplicated in git.
+tasks.register('copyFontAssets', Sync) {
+    def gameRoot = rootProject.file('..')
+    def fontsSource = new File(gameRoot, 'src/fonts.c')
+    inputs.file(fontsSource)
+    def fontNames = ['latin_normal', 'latin_narrow', 'latin_narrower',
+                     'latin_small', 'latin_small_narrow', 'latin_small_narrower']
+    from(new File(gameRoot, 'graphics/fonts')) {
+        include fontNames.collect { it + '.png' }
+        into 'fonts'
+    }
+    from(gameRoot) {
+        include 'charmap.txt'
+        into 'fonts'
+    }
+    into layout.buildDirectory.dir('generated/fontAssets')
+    doLast {
+        def outDir = new File(destinationDir, 'fonts')
+        def tables = (fontsSource.getText('UTF-8') =~ /(?s)gFont(\w+?)LatinGlyphWidths\[\]\s*=\s*\{(.*?)\};/)
+        int written = 0
+        tables.each { match ->
+            // gFontSmallNarrowLatinGlyphWidths -> latin_small_narrow.widths
+            def name = 'latin_' + match[1].replaceAll(/([a-z])([A-Z])/, '$1_$2').toLowerCase()
+            if (!fontNames.contains(name)) {
+                return
+            }
+            def widths = (match[2] =~ /\d+/).collect { it as int }
+            if (widths.size() < 256) {
+                throw new GradleException("src/fonts.c: ${name} has only ${widths.size()} glyph widths")
+            }
+            new File(outDir, name + '.widths').bytes = widths.take(256).collect { it as byte } as byte[]
+            written++
+        }
+        fontNames.each {
+            if (!new File(outDir, it + '.widths').exists() || !new File(outDir, it + '.png').exists()) {
+                throw new GradleException("font ${it} is missing its glyph sheet or its widths in src/fonts.c")
+            }
+        }
+        logger.info("copyFontAssets: ${written} width tables")
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('copyFontAssets')
 }
