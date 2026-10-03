@@ -352,7 +352,7 @@ static u8 ProcessCommands(struct MusicPlayerInfo *info, struct GBSTrack *track)
                 track->pan = *track->nextInstruction++;
                 break;
             case JumpIf:
-                // Not implemented
+                // Not implemented. Skip the condition and the address.
                 track->nextInstruction += 1 + DSIZEPTR;
                 break;
             case Jump:
