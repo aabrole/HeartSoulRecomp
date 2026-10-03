@@ -3,7 +3,7 @@
 	.equiv MUSIC_PLAYER_SE2,2
 	.equiv MUSIC_PLAYER_SE3,3
 
-	.align 2
+	ptr_align
 
 gSongTable::
 	song mus_dummy, MUSIC_PLAYER_BGM, 0
@@ -818,6 +818,7 @@ gSongTable::
 	.align 2
 dummy_song_header:
 	.byte 0, 0, 0, 0
+	ptr_align
 gGBSSongTable:: @ "gbs_hg_" tracks are new tracks that were transcribed from HGSS instead of being from Crystal.
 	
 	@song_gbs SE_SELECT, gbs_sfx_readtext_Header, 2, 2

@@ -13,7 +13,7 @@
 
 	.section script_data, "aw"
 
-	.align 2
+	ptr_align
 gBattlescriptsForUsingItem::
 	ptrvalue BattleScript_ItemRestoreHP                @ EFFECT_ITEM_RESTORE_HP
 	ptrvalue BattleScript_ItemCureStatus               @ EFFECT_ITEM_CURE_STATUS
@@ -28,7 +28,7 @@ gBattlescriptsForUsingItem::
 	ptrvalue BattleScript_ItemIncreaseAllStats         @ EFFECT_ITEM_INCREASE_ALL_STATS
 	ptrvalue BattleScript_UsePokeFlute                 @ EFFECT_ITEM_USE_POKE_FLUTE
 
-	.align 2
+	ptr_align
 gBattlescriptsForSafariActions::
 	ptrvalue BattleScript_ActionWatchesCarefully
 	ptrvalue BattleScript_ActionGetNear

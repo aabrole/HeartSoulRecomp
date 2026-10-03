@@ -43,7 +43,7 @@
 	ptrvalue \script
 	.2byte \event_flag
 	.space 2  @ Padding
-	space64 4
+	@ No 64-bit padding either: the packed struct is 0x1C bytes there.
 	inc _num_npcs
 	.endm
 
@@ -52,13 +52,13 @@
 	.byte \index
 	.2byte \gfx
 	.byte OBJ_KIND_CLONE
-	.space 1  @ Padding
 	.2byte \x, \y
 	.byte \target_local_id
 	.space 3  @ Padding
 	.2byte \target_map_id & 0xFF  @ map num
 	.2byte \target_map_id >> 8    @ map group
 	.space 8  @ Padding
+	space64 4
 	inc _num_npcs
 	.endm
 

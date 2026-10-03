@@ -5,7 +5,7 @@
 
 	.macro accuracycheck failInstr:req
 	.byte B_SCR_OP_ACCURACYCHECK
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro printattackstring
@@ -229,7 +229,7 @@
 
 	.macro decrementmultihit loopInstr:req
 	.byte B_SCR_OP_DECREMENTMULTIHIT
-	.4byte \loopInstr
+	ptrvalue \loopInstr
 	.endm
 
 	.macro goto instr:req
@@ -263,16 +263,16 @@
 
 	.macro jumpifarrayequal array1:req, array2:req, size:req, jumpInstr:req
 	.byte B_SCR_OP_JUMPIFARRAYEQUAL
-	.4byte \array1
-	.4byte \array2
+	ptrvalue \array1
+	ptrvalue \array2
 	.byte \size
 	ptrvalue \jumpInstr
 	.endm
 
 	.macro jumpifarraynotequal array1:req, array2:req, size:req, jumpInstr:req
 	.byte B_SCR_OP_JUMPIFARRAYNOTEQUAL
-	.4byte \array1
-	.4byte \array2
+	ptrvalue \array1
+	ptrvalue \array2
 	.byte \size
 	ptrvalue \jumpInstr
 	.endm
@@ -464,7 +464,7 @@
 
 	.macro sethealblock failInstr:req
 	.byte B_SCR_OP_SETHEALBLOCK
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro returnatktoball
@@ -749,7 +749,7 @@
 	.byte B_SCR_OP_STATBUFFCHANGE
 	.byte \battler
 	.2byte \flags
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.byte \stats
 	.endm
 
@@ -763,7 +763,7 @@
 
 	.macro twoturnmoveschargestringandanimation
 	.byte B_SCR_OP_TWOTURNMOVESCHARGESTRINGANDANIMATION
-	.4byte 1f @animation then attack string
+	ptrvalue 1f @animation then attack string
 	@default - attack string then animation
 	printsavedstring
 	waitmessage B_WAIT_TIME_LONG
@@ -957,7 +957,7 @@
 
 	.macro halvehp failInstr:req
 	.byte B_SCR_OP_HALVEHP
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro copyfoestats
@@ -988,8 +988,8 @@
 
 	.macro trydobeatup endInstr:req, failInstr:req
 	.byte B_SCR_OP_TRYDOBEATUP
-	.4byte \endInstr
-	.4byte \failInstr
+	ptrvalue \endInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro setsemiinvulnerablebit clear=FALSE
@@ -1119,7 +1119,7 @@
 
 	.macro jumpifsubstituteblocks jumpInstr:req
 	.byte B_SCR_OP_JUMPIFSUBSTITUTEBLOCKS
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro tryrecycleitem failInstr:req
@@ -1134,7 +1134,7 @@
 
 	.macro pursuitdoubles failInstr:req
 	.byte B_SCR_OP_PURSUITDOUBLES
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro snatchsetbattlers
@@ -1201,7 +1201,7 @@
 
 	.macro jumpifcaptivateaffected jumpInstr:req
 	.byte B_SCR_OP_JUMPIFCAPTIVATEAFFECTED
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro setnonvolatilestatus trigger:req
@@ -1216,7 +1216,7 @@
 
 	.macro callnative func:req
 	.byte B_SCR_OP_CALLNATIVE
-	.4byte \func
+	ptrvalue \func
 	.endm
 
 	.macro savetarget
@@ -1251,7 +1251,7 @@
 	.macro dostockpilestatchangeswearoff, battler:req, statChangeInstr:req
 	callnative BS_DoStockpileStatChangesWearOff
 	.byte \battler
-	.4byte \statChangeInstr
+	ptrvalue \statChangeInstr
 	.endm
 
 	.macro jumpifmorethanhalfHP battler:req, jumpInstr:req
@@ -1291,7 +1291,7 @@
 
 	.macro setpledge jumpInstr:req
 	callnative BS_SetPledge
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro setpledgestatus battler:req, sidestatus:req
@@ -1330,7 +1330,7 @@
 	.macro jumpifshelltrap battler:req, jumpInstr:req
 	callnative BS_JumpIfShellTrap
 	.byte \battler
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro setterrain failInstr:req
@@ -1470,7 +1470,7 @@
 	.macro copyfoesstatincrease battler:req, failInstr:req
 	callnative BS_CopyFoesStatIncrease
 	.byte \battler
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro removeweather
@@ -1488,7 +1488,7 @@
 
 	.macro trytarshot failInstr:req
 	callnative BS_TryTarShot
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro jumpifnoberry battler:req, jumpInstr:req
@@ -1558,7 +1558,7 @@
 
 	.macro cantarshotwork failInstr:req
 	callnative BS_CanTarShotWork
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro removeterrain
@@ -1785,7 +1785,7 @@
 	.macro jumpifnotberry battler:req, jumpInstr:req
 	callnative BS_JumpIfNotBerry
 	.byte \battler
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro gravityonairbornemons
@@ -1794,7 +1794,7 @@
 
 	.macro tryacupressure failInstr:req
 	callnative BS_TryAcupressure
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro cancelmultiturnmoves
@@ -1984,7 +1984,7 @@
 
 	.macro tryautotomize failInstr:req
 	callnative BS_TryAutotomize
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro tryinstruct failInstr:req
@@ -2061,7 +2061,7 @@
 
 	.macro gettotemboost jumpInstr:req
 	callnative BS_GetTotemBoost
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro activateitemeffects
@@ -2115,7 +2115,7 @@
 
 	.macro getrototillertargets failInstr:req
 	callnative BS_GetRototillerTargets
-	.4byte \failInstr
+	ptrvalue \failInstr
 	.endm
 
 	.macro consumeberry battler:req, fromBattler:req

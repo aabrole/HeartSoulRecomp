@@ -274,7 +274,7 @@
 	@ same as createvisualtask except takes in battlerargindex, which is the battle anim arg index of the battler to loop through
 	.macro createvisualtaskontargets addr:req, priority:req, battlerargindex:req, argv:vararg
 	.byte 0x30
-	.4byte \addr
+	ptrvalue \addr
 	.byte \priority
 	.byte \battlerargindex
 	.byte (.Lcreatetask_\@_2 - .Lcreatetask_\@_1) / 2	@ num_args
@@ -286,7 +286,7 @@
 	@ same as createsprite except takes in battlerargindex, which is the battle anim arg index of the battler to loop through
 	.macro createspriteontargets template:req, anim_battler:req, subpriority_offset:req, battlerargindex:req, argv:vararg
 	.byte 0x31
-	.4byte \template
+	ptrvalue \template
 	.if \anim_battler == ANIM_TARGET
 	.byte ANIMSPRITE_IS_TARGET | (\subpriority_offset & 0x7F)
 	.else
@@ -302,7 +302,7 @@
 	@ does not overwrite gBattleAnimArgs[battlerargindex], some sprite templates are too dependent on the value (e.g. heal block)
 	.macro createspriteontargets_onpos template:req, anim_battler:req, subpriority_offset:req, battlerargindex:req, argv:vararg
 	.byte 0x32
-	.4byte \template
+	ptrvalue \template
 	.if \anim_battler == ANIM_TARGET
 	.byte ANIMSPRITE_IS_TARGET | (\subpriority_offset & 0x7F)
 	.else
@@ -318,7 +318,7 @@
 	.macro jumpifmovetypeequal type:req, jumpInstr:req
 	.byte 0x33
 	.byte \type
-	.4byte \jumpInstr
+	ptrvalue \jumpInstr
 	.endm
 
 	.macro createdragondartsprite anim_battler:req, subpriority_offset:req, argv:vararg
