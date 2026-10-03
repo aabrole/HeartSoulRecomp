@@ -2257,7 +2257,7 @@ static void SetBPShopItems(const struct BPShopEntry *entries)
 static void CreateBPShopCommon(u8 martType, const struct BPShopEntry *entries)
 {
     u8 taskId;
-    s16 *data;
+    s16 *data UNUSED; // only used by the non-PORTABLE build
 
     LockPlayerFieldControls();
     sMartInfo.martType = martType;
@@ -2300,7 +2300,7 @@ static const u16 sKurtBallShopItems[] =
 void CreateKurtBallShop(void)
 {
     u8 taskId;
-    s16 *data;
+    s16 *data UNUSED; // only used by the non-PORTABLE build
 
     LockPlayerFieldControls();
     sMartInfo.martType = MART_TYPE_KURT;
