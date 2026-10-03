@@ -1,3 +1,61 @@
+<p align="center"><img src="port/icon/icon-512.png" width="128" alt="HeartSoulRecomp icon"></p>
+
+# HeartSoulRecomp
+
+Pokémon Heart & Soul running natively on Android, built for dual-screen handhelds like the AYN Thor. There is no emulator: the game is compiled from Heart & Soul's source code into an Android app, with a 16:9 widescreen top screen and a touch companion screen on the bottom.
+
+This is a fan project. It is not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the Heart & Soul team.
+
+**Status: first test build (0.1.0).** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
+
+## Download and install
+
+1. Download `HeartSoulRecomp-0.1.0.apk` from the [Releases](../../releases) page.
+2. Open it on your device and allow installing from unknown sources when Android asks.
+3. Launch **Heart & Soul**.
+
+Requirements: Android 8 or newer on a device that runs 32-bit ARM apps (`armeabi-v7a`). The AYN Thor does. Many newer phones with 64-bit-only chips cannot install it.
+
+## Features
+
+- **Native speed.** The game runs as Android code, not inside an emulator.
+- **Widescreen.** On 16:9 screens the overworld and battles fill the whole width, showing more of the map. Screens narrower than 16:10, such as the Anbernic RG DS's 4:3 panels, get the original GBA picture.
+- **Bottom screen.** On a device with a second screen, it shows your party, money, badges and play time, and in battle has touch buttons for moves, Bag, Pokémon and Run, drawn in the game's own font.
+- **Controller support.** Built-in controls and gamepads work. The button labelled A is A. Hold the right trigger to fast-forward.
+
+## Saves
+
+Your save is `Android/data/com.heartsoul.recomp/files/pokeemerald.sav` on the device's storage. Copy it somewhere safe from time to time with a file manager or `adb pull`. **Uninstalling the app deletes it.** Saves are not compatible with the GBA version or emulators.
+
+## Known issues
+
+- Only the start of the game has been tested. Other areas may crash.
+- Very occasionally Android has closed the app while drawing the screen. Save often.
+- On the RG DS the bottom screen only appears if its system offers the second screen to apps the way the Thor does. Otherwise the game runs on one screen.
+- A few screens (title, menus, bag) stay 4:3 with black bars in widescreen, as designed.
+
+Report problems on the [Issues](../../issues) page with your device model and what you were doing.
+
+## Building
+
+See [`PORT_PLAN.md`](PORT_PLAN.md) and the newest entry in [`PORT_LOG.md`](PORT_LOG.md). In short: Docker builds the game data, then `port/build-apk.sh --data` builds the APK with the Android NDK.
+
+## Credits
+
+- **[Pokémon Heart & Soul](https://github.com/PokemonHnS-Development/pokehns-expansion)** by the Heart & Soul team: the game itself.
+- **[pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion)** by RHH (Rom Hacking Hideout), version 1.15.
+- **[pret/pokeemerald](https://github.com/pret/pokeemerald)**: the decompilation everything above is built on.
+- **[NTx86/pokeemerald-sdl2pc](https://github.com/NTx86/pokeemerald-sdl2pc)**: the native PC port layer, including its expansion port work.
+- **[Goldoire/pokeemerald-dualscreen](https://github.com/Goldoire/pokeemerald-dualscreen)** and **[gradenGnostic/pokeemerald-multiplatform](https://github.com/gradenGnostic/pokeemerald-multiplatform)**: the widescreen renderer and the dual-screen design this follows.
+- **[fuddlesworth/pokeemerald-native](https://github.com/fuddlesworth/pokeemerald-native)**: reference for the native port.
+- **[SDL](https://www.libsdl.org/)**.
+
+Port by Aman (u/BrownCountdown), developed with the help of Claude Code.
+
+---
+
+The rest of this README is Heart & Soul's own.
+
 ![HnS Logo](HnS_Logo.png)
 
 # About `pokemonHnS-expansion`
