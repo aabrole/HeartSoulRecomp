@@ -49,6 +49,12 @@ struct RedArrowCursor
     u16 palTag;
 };
 
+// These structs are kept in a task's data[], which must hold them with pointers
+// of either width (task data is 8-aligned on 64-bit).
+STATIC_ASSERT(sizeof(struct ListMenu) <= sizeof(((struct Task *)0)->data), ListMenuFitsTaskData);
+STATIC_ASSERT(sizeof(struct ScrollIndicatorPair) <= sizeof(((struct Task *)0)->data), ScrollIndicatorPairFitsTaskData);
+STATIC_ASSERT(sizeof(struct RedOutlineCursor) <= sizeof(((struct Task *)0)->data), RedOutlineCursorFitsTaskData);
+
 // this file's functions
 static u8 ListMenuInitInternal(struct ListMenuTemplate *listMenuTemplate, u16 scrollOffset, u16 selectedRow);
 static void ListMenuPrintEntries(struct ListMenu *list, u16 startIndex, u16 yOffset, u16 count);
@@ -1148,7 +1154,7 @@ void ListMenuDefaultCursorMoveFunc(s32 itemIndex, bool8 onInit, struct ListMenu 
 }
 
 // unused
-s32 ListMenuGetTemplateField(u8 taskId, u8 field)
+intptr_t ListMenuGetTemplateField(u8 taskId, u8 field)
 {
     struct ListMenu *data = (void *) gTasks[taskId].data;
 
@@ -1156,7 +1162,7 @@ s32 ListMenuGetTemplateField(u8 taskId, u8 field)
     {
     case LISTFIELD_MOVECURSORFUNC:
     case LISTFIELD_MOVECURSORFUNC2:
-        return (s32)(data->template.moveCursorFunc);
+        return (intptr_t)(data->template.moveCursorFunc);
     case LISTFIELD_TOTALITEMS:
         return data->template.totalItems;
     case LISTFIELD_MAXSHOWED:
@@ -1192,7 +1198,7 @@ s32 ListMenuGetTemplateField(u8 taskId, u8 field)
     }
 }
 
-void ListMenuSetTemplateField(u8 taskId, u8 field, s32 value)
+void ListMenuSetTemplateField(u8 taskId, u8 field, intptr_t value)
 {
     struct ListMenu *data = (void *) &gTasks[taskId].data;
 
@@ -1200,11 +1206,7 @@ void ListMenuSetTemplateField(u8 taskId, u8 field, s32 value)
     {
     case LISTFIELD_MOVECURSORFUNC:
     case LISTFIELD_MOVECURSORFUNC2:
-        #ifndef VER_64BIT
         data->template.moveCursorFunc = (void *)value;
-        #else
-        printf("ListMenuSetUnkIndicatorsStructField: case LISTFIELD_MOVECURSORFUNC stubbed out.");
-        #endif
         break;
     case LISTFIELD_TOTALITEMS:
         data->template.totalItems = value;

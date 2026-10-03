@@ -43,7 +43,7 @@
 
 #define CpuSmartCopy16(src, dest, size) \
 { \
-    if ((((size) & 0x1f) == 0) && ((((u32)(src)) & 3) == 0) && ((((u32)(dest)) & 3) == 0)) { \
+    if ((((size) & 0x1f) == 0) && ((((uintptr_t)(src)) & 3) == 0) && ((((uintptr_t)(dest)) & 3) == 0)) { \
         CpuFastCopy((src), (dest), (size)); \
     } else { \
         CpuCopy16((src), (dest), (size)); \
@@ -52,7 +52,7 @@
 
 #define CpuSmartCopy32(src, dest, size) \
 { \
-    if ((((size) & 0x1f) == 0) && ((((u32)(src)) & 3) == 0) && ((((u32)(dest)) & 3) == 0)) { \
+    if ((((size) & 0x1f) == 0) && ((((uintptr_t)(src)) & 3) == 0) && ((((uintptr_t)(dest)) & 3) == 0)) { \
         CpuFastCopy((src), (dest), (size)); \
     } else { \
         CpuCopy32((src), (dest), (size)); \
@@ -73,7 +73,7 @@
 
 #define CpuSmartFill(value, dest, size) \
 { \
-    if ((((size) & 0x1f) == 0) && ((((u32)(dest)) & 3) == 0)) { \
+    if ((((size) & 0x1f) == 0) && ((((uintptr_t)(dest)) & 3) == 0)) { \
         CpuFastFill((value), (dest), (size)); \
     } else { \
         CpuFill32((value), (dest), (size)); \
@@ -82,7 +82,7 @@
 
 #define CpuSmartFill16(value, dest, size) \
 { \
-    if ((((size) & 0x1f) == 0) && ((((u32)(dest)) & 3) == 0)) { \
+    if ((((size) & 0x1f) == 0) && ((((uintptr_t)(dest)) & 3) == 0)) { \
         CpuFastFill16((value), (dest), (size)); \
     } else { \
         CpuFill16((value), (dest), (size)); \

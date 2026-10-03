@@ -41,7 +41,12 @@ struct MemBlock
     u8 data[0];
 };
 
+#ifdef VER_64BIT
+// Structs with pointers are bigger here. MemBlock.size has 18 bits.
+#define HEAP_SIZE 0x38000
+#else
 #define HEAP_SIZE 0x1C500
+#endif
 extern u8 gHeap[HEAP_SIZE];
 
 #if TESTING || !defined(NDEBUG)

@@ -2538,7 +2538,12 @@ static u8 *AddTextPrinterAndCreateWindowOnHealthboxWithFont(const u8 *str, u32 x
     AddTextPrinterParameterized4(winId, fontId, x, y, 0, 0, color, TEXT_SKIP_DRAW, str);
 
     *windowId = winId;
+#ifdef PORTABLE
+    // GetWindowAttribute no longer returns WINDOW_TILE_DATA (it returned 0).
+    return GetWindowTileData(winId);
+#else
     return (u8 *)(GetWindowAttribute(winId, WINDOW_TILE_DATA));
+#endif
 }
 
 static u8 *AddTextPrinterAndCreateWindowOnHealthbox(const u8 *str, u32 x, u32 y, u32 bgColor, u32 *windowId, bool32 isHP)
@@ -2705,7 +2710,12 @@ static u8 *AddTextPrinterAndCreateWindowOnAbilityPopUp(const u8 *str, u32 x, u32
     fontId = GetFontIdToFit(str, FONT_SMALL, 0, ABILITY_POP_UP_STR_WIDTH);
     AddTextPrinterParameterized4(*windowId, fontId, x, y, 0, 0, color, TEXT_SKIP_DRAW, str);
 
+#ifdef PORTABLE
+    // GetWindowAttribute no longer returns WINDOW_TILE_DATA (it returned 0).
+    return GetWindowTileData(*windowId);
+#else
     return (u8 *)(GetWindowAttribute(*windowId, WINDOW_TILE_DATA));
+#endif
 }
 
 static void TextIntoAbilityPopUp(void *dest, u8 *windowTileData, s32 windowWidth, bool32 printNickname)

@@ -69,7 +69,7 @@ const IntrFunc gIntrTableTemplate[] =
 #define INTR_COUNT ((int)(sizeof(gIntrTableTemplate)/sizeof(IntrFunc)))
 
 #ifdef PORTABLE
-u8 gHeap[HEAP_SIZE];
+ALIGNED(8) u8 gHeap[HEAP_SIZE];
 #endif
 COMMON_DATA u16 gKeyRepeatStartDelay = 0;
 COMMON_DATA bool8 gLinkTransferringData = 0;

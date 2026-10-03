@@ -37,8 +37,14 @@ void *AllocInternal(void *heapStart, u32 size, const char *location)
     u32 foundBlockSize;
 
     // Alignment
+#ifdef VER_64BIT
+    // Keep blocks and their headers (which hold pointers) 8-aligned.
+    if (size & 7)
+        size = 8 * ((size / 8) + 1);
+#else
     if (size & 3)
         size = 4 * ((size / 4) + 1);
+#endif
 
     for (;;)
     {
@@ -247,5 +253,10 @@ const char *MemBlockLocation(const struct MemBlock *block)
     if (!block->allocated)
         return NULL;
 
+#ifdef PORTABLE
+    // Only 25 bits of the location are kept; that is not a native pointer.
+    return NULL;
+#else
     return (const char *)(ROM_START | (block->locationHi << 14) | block->locationLo);
+#endif
 }
