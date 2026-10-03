@@ -432,7 +432,7 @@ static void ZMoveSelectionDisplayMoveType(enum Move zMove, enum BattlerId battle
     BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_MOVE_TYPE);
 }
 
-#define Z_EFFECT_BS_LENGTH  5
+#define Z_EFFECT_BS_LENGTH  (1 + DSIZEPTR) // setzeffect: callnative and its function pointer
 // This function kinda cheats by setting a return battle script to after the setzeffect various command
 // and then jumping to a z effect script
 void SetZEffect(void)
