@@ -782,7 +782,13 @@ inline static void GLYPH_COPY(u8 *windowTiles, u32 widthOffset, u32 x0, u32 y0, 
     if (width <= 0)
         return;
 
+#ifdef UBFIX
+    // Shifting a u32 by 32 is undefined. 32-bit ARM gives 0, which this code
+    // relies on, but AArch64 shifts by the amount modulo 32.
+    u32 widthMask = width >= 8 ? 0xFFFFFFFF : (1u << (width * 4)) - 1;
+#else
     u32 widthMask = (1 << (width * 4)) - 1;
+#endif
 
     u32 shift0 = (x0 % 8) * 4, shift8 = 32 - shift0;
 
@@ -801,6 +807,10 @@ inline static void GLYPH_COPY(u8 *windowTiles, u32 widthOffset, u32 x0, u32 y0, 
 
         u32 pixels0 = pixels << shift0, pixels8 = pixels >> shift8;
         u32 mask0 = mask << shift0, mask8 = mask >> shift8;
+#ifdef UBFIX
+        if (shift8 >= 32)
+            pixels8 = mask8 = 0;
+#endif
 
         u32 *alignedWindowTiles = (u32 *)((u8 *)alignedWindowTilesX + ((y / 8) * widthOffset) + ((y % 8) * 4));
 
