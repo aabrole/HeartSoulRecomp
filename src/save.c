@@ -47,6 +47,99 @@ static void CopyFromSaveBlock3(u32, struct SaveSector *);
  * See SECTOR_ID_* constants in save.h
  */
 
+#ifdef VER_64BIT
+/*
+ * On 64-bit builds SaveBlock1 is bigger in memory than on 32-bit ones: the
+ * script of each object event template is a pointer, 8 bytes instead of 4.
+ * The save file keeps the 32-bit layout, so a save made by the 32-bit build
+ * (all releases up to 0.1.1) loads in the 64-bit build and the other way
+ * round. SaveBlock1's sectors are written from and read into
+ * sSaveBlock1Saved, which is converted from/to gSaveBlock1Ptr.
+ *
+ * The scripts are saved as 0 and loaded as NULL. They are not used after
+ * loading: CB2_ContinueSavedGame restores them from the map with
+ * LoadSaveblockObjEventScripts, and a 32-bit build's pointer would mean
+ * nothing here anyway. Everything else in SaveBlock1 has no pointers and the
+ * same layout on both, so it is copied as is. Any pointer added to
+ * SaveBlock1 has to be converted here as well.
+ */
+#define SAVED_TEMPLATE_SCRIPT_SIZE 4
+#define SAVED_TEMPLATE_SIZE        (sizeof(struct ObjectEventTemplate) - sizeof(void *) + SAVED_TEMPLATE_SCRIPT_SIZE)
+#define TEMPLATE_SCRIPT_OFFSET     offsetof(struct ObjectEventTemplate, script)
+#define TEMPLATE_AFTER_SCRIPT      (TEMPLATE_SCRIPT_OFFSET + sizeof(void *))
+
+// Where the templates are in memory...
+#define SB1_TEMPLATES_OFFSET  offsetof(struct SaveBlock1, objectEventTemplates)
+#define SB1_TEMPLATES_END     (SB1_TEMPLATES_OFFSET + OBJECT_EVENT_TEMPLATES_COUNT * sizeof(struct ObjectEventTemplate))
+// ...and in the save.
+#define SAVED_TEMPLATES_END   (SB1_TEMPLATES_OFFSET + OBJECT_EVENT_TEMPLATES_COUNT * SAVED_TEMPLATE_SIZE)
+#define SAVEBLOCK1_SAVE_SIZE  (SAVED_TEMPLATES_END + sizeof(struct SaveBlock1) - SB1_TEMPLATES_END)
+
+STATIC_ASSERT(SAVED_TEMPLATE_SIZE == 0x18, SavedObjectEventTemplateSize);
+STATIC_ASSERT(sizeof(((struct SaveBlock1 *)NULL)->objectEventTemplates) == OBJECT_EVENT_TEMPLATES_COUNT * sizeof(struct ObjectEventTemplate), SaveBlock1TemplatesCount);
+STATIC_ASSERT(SAVEBLOCK1_SAVE_SIZE <= SECTOR_DATA_SIZE * (SECTOR_ID_SAVEBLOCK1_END - SECTOR_ID_SAVEBLOCK1_START + 1), SaveBlock1SavedFreeSpace);
+
+// SaveBlock1 as stored in the save, for SAVEBLOCK_CHUNK
+struct SaveBlock1Saved
+{
+    u8 data[SAVEBLOCK1_SAVE_SIZE];
+};
+
+EWRAM_DATA static struct SaveBlock1Saved sSaveBlock1Saved ALIGNED(4) = {0};
+
+static void SaveBlock1ToSaved(void)
+{
+    const u8 *block = (const u8 *)gSaveBlock1Ptr;
+    u8 *saved = sSaveBlock1Saved.data;
+    u32 i;
+
+    memcpy(saved, block, SB1_TEMPLATES_OFFSET);
+    for (i = 0; i < OBJECT_EVENT_TEMPLATES_COUNT; i++)
+    {
+        const u8 *src = &block[SB1_TEMPLATES_OFFSET + i * sizeof(struct ObjectEventTemplate)];
+        u8 *dst = &saved[SB1_TEMPLATES_OFFSET + i * SAVED_TEMPLATE_SIZE];
+
+        memcpy(dst, src, TEMPLATE_SCRIPT_OFFSET);
+        memset(&dst[TEMPLATE_SCRIPT_OFFSET], 0, SAVED_TEMPLATE_SCRIPT_SIZE);
+        memcpy(&dst[TEMPLATE_SCRIPT_OFFSET + SAVED_TEMPLATE_SCRIPT_SIZE], &src[TEMPLATE_AFTER_SCRIPT],
+               sizeof(struct ObjectEventTemplate) - TEMPLATE_AFTER_SCRIPT);
+    }
+    memcpy(&saved[SAVED_TEMPLATES_END], &block[SB1_TEMPLATES_END], sizeof(struct SaveBlock1) - SB1_TEMPLATES_END);
+}
+
+static void SaveBlock1FromSaved(void)
+{
+    u8 *block = (u8 *)gSaveBlock1Ptr;
+    const u8 *saved = sSaveBlock1Saved.data;
+    u32 i;
+
+    memcpy(block, saved, SB1_TEMPLATES_OFFSET);
+    for (i = 0; i < OBJECT_EVENT_TEMPLATES_COUNT; i++)
+    {
+        u8 *dst = &block[SB1_TEMPLATES_OFFSET + i * sizeof(struct ObjectEventTemplate)];
+        const u8 *src = &saved[SB1_TEMPLATES_OFFSET + i * SAVED_TEMPLATE_SIZE];
+
+        memcpy(dst, src, TEMPLATE_SCRIPT_OFFSET);
+        memset(&dst[TEMPLATE_SCRIPT_OFFSET], 0, sizeof(void *));
+        memcpy(&dst[TEMPLATE_AFTER_SCRIPT], &src[TEMPLATE_SCRIPT_OFFSET + SAVED_TEMPLATE_SCRIPT_SIZE],
+               sizeof(struct ObjectEventTemplate) - TEMPLATE_AFTER_SCRIPT);
+    }
+    memcpy(&block[SB1_TEMPLATES_END], &saved[SAVED_TEMPLATES_END], sizeof(struct SaveBlock1) - SB1_TEMPLATES_END);
+}
+
+// Called right before a sector's data is copied out to be written. SaveBlock1
+// is converted as late as possible, since the game copies things like the
+// party into it after UpdateSaveAddresses.
+static void PrepareSectorData(u16 sectorId)
+{
+    if (sectorId >= SECTOR_ID_SAVEBLOCK1_START && sectorId <= SECTOR_ID_SAVEBLOCK1_END)
+        SaveBlock1ToSaved();
+}
+#define SAVEBLOCK1_LAYOUT struct SaveBlock1Saved
+#else
+#define SAVEBLOCK1_LAYOUT struct SaveBlock1
+#endif
+
 #define SAVEBLOCK_CHUNK(structure, chunkNum)                                   \
 {                                                                              \
     chunkNum * SECTOR_DATA_SIZE,                                               \
@@ -62,10 +155,10 @@ struct
 {
     SAVEBLOCK_CHUNK(struct SaveBlock2, 0), // SECTOR_ID_SAVEBLOCK2
 
-    SAVEBLOCK_CHUNK(struct SaveBlock1, 0), // SECTOR_ID_SAVEBLOCK1_START
-    SAVEBLOCK_CHUNK(struct SaveBlock1, 1),
-    SAVEBLOCK_CHUNK(struct SaveBlock1, 2),
-    SAVEBLOCK_CHUNK(struct SaveBlock1, 3), // SECTOR_ID_SAVEBLOCK1_END
+    SAVEBLOCK_CHUNK(SAVEBLOCK1_LAYOUT, 0), // SECTOR_ID_SAVEBLOCK1_START
+    SAVEBLOCK_CHUNK(SAVEBLOCK1_LAYOUT, 1),
+    SAVEBLOCK_CHUNK(SAVEBLOCK1_LAYOUT, 2),
+    SAVEBLOCK_CHUNK(SAVEBLOCK1_LAYOUT, 3), // SECTOR_ID_SAVEBLOCK1_END
 
     SAVEBLOCK_CHUNK(struct PokemonStorage, 0), // SECTOR_ID_PKMN_STORAGE_START
     SAVEBLOCK_CHUNK(struct PokemonStorage, 1),
@@ -210,6 +303,9 @@ static u8 HandleWriteSector(u16 sectorId, const struct SaveSectorLocation *locat
     sector += NUM_SECTORS_PER_SLOT * (gSaveCounter % NUM_SAVE_SLOTS);
 
     // Get current save data
+#ifdef VER_64BIT
+    PrepareSectorData(sectorId);
+#endif
     data = locations[sectorId].data;
     size = locations[sectorId].size;
 
@@ -346,6 +442,9 @@ static u8 HandleReplaceSector(u16 sectorId, const struct SaveSectorLocation *loc
     sector += NUM_SECTORS_PER_SLOT * (gSaveCounter % NUM_SAVE_SLOTS);
 
     // Get current save data
+#ifdef VER_64BIT
+    PrepareSectorData(sectorId);
+#endif
     data = locations[sectorId].data;
     size = locations[sectorId].size;
 
@@ -503,7 +602,15 @@ static u8 TryLoadSaveSlot(u16 sectorId, struct SaveSectorLocation *locations)
     else
     {
         status = GetSaveValidStatus(locations);
+#ifdef VER_64BIT
+        // Sectors that fail their checksum are not copied, so they keep
+        // what is in memory, as on 32-bit.
+        SaveBlock1ToSaved();
         CopySaveSlotData(FULL_SAVE_SLOT, locations);
+        SaveBlock1FromSaved();
+#else
+        CopySaveSlotData(FULL_SAVE_SLOT, locations);
+#endif
     }
 
     return status;
@@ -722,7 +829,11 @@ static void UpdateSaveAddresses(void)
 
     for (i = SECTOR_ID_SAVEBLOCK1_START; i <= SECTOR_ID_SAVEBLOCK1_END; i++)
     {
+#ifdef VER_64BIT
+        gRamSaveSectorLocations[i].data = (void *)(sSaveBlock1Saved.data) + sSaveSlotLayout[i].offset;
+#else
         gRamSaveSectorLocations[i].data = (void *)(gSaveBlock1Ptr) + sSaveSlotLayout[i].offset;
+#endif
         gRamSaveSectorLocations[i].size = sSaveSlotLayout[i].size;
     }
 
