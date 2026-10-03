@@ -6,13 +6,17 @@ Pokémon Heart & Soul running natively on Android, built for dual-screen handhel
 
 This is a fan project. It is not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the Heart & Soul team.
 
-**Status: first test build (0.1.0).** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
+**Status: test build 0.1.1.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
 
 ## Download and install
 
-1. Download `HeartSoulRecomp-0.1.0.apk` from the [Releases](../../releases) page.
-2. Open it on your device and allow installing from unknown sources when Android asks.
+**[Download HeartSoulRecomp-0.1.1.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.1.1/HeartSoulRecomp-0.1.1.apk)** (45 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
+
+1. Download the APK on your device, or copy it over from a computer.
+2. Open it and allow installing from unknown sources when Android asks.
 3. Launch **Heart & Soul**.
+
+**Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save.
 
 Requirements: Android 8 or newer on a device that runs 32-bit ARM apps (`armeabi-v7a`). The AYN Thor does. Many newer phones with 64-bit-only chips cannot install it.
 
