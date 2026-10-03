@@ -6,11 +6,11 @@ Pokémon Heart & Soul running natively on Android, built for dual-screen handhel
 
 This is a fan project. It is not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the Heart & Soul team.
 
-**Status: test build 0.1.1.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
+**Status: test build 0.2.0.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
 
 ## Download and install
 
-**[Download HeartSoulRecomp-0.1.1.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.1.1/HeartSoulRecomp-0.1.1.apk)** (45 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
+**[Download HeartSoulRecomp-0.2.0.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.2.0/HeartSoulRecomp-0.2.0.apk)** (95 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
 
 1. Download the APK on your device, or copy it over from a computer.
 2. Open it and allow installing from unknown sources when Android asks.
@@ -18,7 +18,7 @@ This is a fan project. It is not affiliated with or endorsed by Nintendo, Game F
 
 **Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save.
 
-Requirements: Android 8 or newer on a device that runs 32-bit ARM apps (`armeabi-v7a`). The AYN Thor does. Many newer phones with 64-bit-only chips cannot install it.
+Requirements: Android 8 or newer on an ARM device. The APK contains both a 64-bit (`arm64-v8a`) and a 32-bit (`armeabi-v7a`) build, and Android picks the right one, so it also installs on 64-bit-only systems such as some custom handheld firmware.
 
 ## Features
 
