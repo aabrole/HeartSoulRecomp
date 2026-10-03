@@ -1,5 +1,8 @@
 #include "global.h"
 #include "task.h"
+#ifdef PORTABLE
+#include "platform.h"
+#endif
 
 COMMON_DATA struct Task gTasks[NUM_TASKS] = {0};
 
@@ -24,6 +27,11 @@ void ResetTasks(void)
     gTasks[NUM_TASKS - 1].next = TAIL_SENTINEL;
 }
 
+#ifdef PORTABLE
+// Who created each task, so a task that ends up with no function can be traced.
+static void *sTaskCreators[NUM_TASKS];
+#endif
+
 u8 CreateTask(TaskFunc func, u8 priority)
 {
     u8 i;
@@ -37,6 +45,9 @@ u8 CreateTask(TaskFunc func, u8 priority)
             InsertTask(i);
             memset(gTasks[i].data, 0, sizeof(gTasks[i].data));
             gTasks[i].isActive = TRUE;
+#ifdef PORTABLE
+            sTaskCreators[i] = __builtin_return_address(0);
+#endif
             return i;
         }
     }
@@ -117,6 +128,19 @@ void RunTasks(void)
     {
         do
         {
+#ifdef PORTABLE
+            // A GBA calling address 0 runs the BIOS and usually survives. A native
+            // build crashes, so report the task and its creator and drop it.
+            if (gTasks[taskId].func == NULL)
+            {
+                u8 next = gTasks[taskId].next;
+
+                Platform_ReportNullTask(taskId, sTaskCreators[taskId], gTasks[taskId].data);
+                DestroyTask(taskId);
+                taskId = next;
+                continue;
+            }
+#endif
             gTasks[taskId].func(taskId);
             taskId = gTasks[taskId].next;
         } while (taskId != TAIL_SENTINEL);

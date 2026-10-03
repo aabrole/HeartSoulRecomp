@@ -1,4 +1,6 @@
 #ifdef PLATFORM_SDL2
+// For dladdr in glibc.
+#define _GNU_SOURCE
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,6 +10,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ucontext.h>
+#include <dlfcn.h>
 #endif
 #include <string.h>
 
@@ -328,6 +331,8 @@ static int RunHeadless(unsigned long frameCount)
     unsigned long every = everyText != NULL ? strtoul(everyText, NULL, 10) : 0;
     const char *testBattleText = getenv("HNS_TEST_BATTLE");
     unsigned long testBattleFrame = testBattleText != NULL ? strtoul(testBattleText, NULL, 10) : 0;
+    const char *giveMonText = getenv("HNS_GIVE_MON");
+    unsigned long giveMonFrame = giveMonText != NULL ? strtoul(giveMonText, NULL, 10) : 0;
     const char *gbsText = getenv("HNS_GBS");
     unsigned long gbsFrame = gbsText != NULL ? strtoul(gbsText, NULL, 10) : 0;
     const char *wavPath = getenv("HNS_WAV");
@@ -365,11 +370,21 @@ static int RunHeadless(unsigned long frameCount)
         }
         // HNS_TEST_BATTLE=FRAME gives the player a Cyndaquil and starts a wild
         // battle on that frame. The player must be standing in the overworld.
+        // HNS_GIVE_MON=FRAME gives the Cyndaquil on its own, so a later warp
+        // reloads the map with it in the party (and following the player).
+        if (giveMonFrame != 0 && frame == giveMonFrame)
+            ScriptGiveMon(SPECIES_CYNDAQUIL, 5, ITEM_NONE);
         if (testBattleFrame != 0 && frame == testBattleFrame)
         {
-            ScriptGiveMon(SPECIES_CYNDAQUIL, 10, ITEM_NONE);
+            if (giveMonFrame == 0)
+                ScriptGiveMon(SPECIES_CYNDAQUIL, 10, ITEM_NONE);
             CreateScriptedWildMon(SPECIES_SENTRET, 3, ITEM_NONE);
-            BattleSetup_StartScriptedWildBattle();
+            // HNS_TEST_BATTLE_KIND=wild uses the path of a grass encounter
+            // instead of a scripted one.
+            if (getenv("HNS_TEST_BATTLE_KIND") != NULL && strcmp(getenv("HNS_TEST_BATTLE_KIND"), "wild") == 0)
+                BattleSetup_StartWildBattle();
+            else
+                BattleSetup_StartScriptedWildBattle();
         }
         if (gbsFrame != 0 && frame == gbsFrame)
             FlagSet(FLAG_SYS_GBS_ENABLED);
@@ -657,7 +672,38 @@ static void StoreSaveFile()
     {
         fseek(sSaveFile, 0, SEEK_SET);
         fwrite(FLASH_BASE, 1, sizeof(FLASH_BASE), sSaveFile);
+        // Android kills apps rather than letting them exit, so anything left in
+        // the stdio buffer would be lost. Write it to the disk now.
+        fflush(sSaveFile);
+#ifndef _WIN32
+        fsync(fileno(sSaveFile));
+#endif
     }
+}
+
+// Goes to logcat on Android (tag SDL/APP) and to standard error elsewhere.
+void Platform_Log(const char *message)
+{
+    SDL_Log("%s", message);
+}
+
+void Platform_ReportNullTask(u8 taskId, void *creator, const s16 *data)
+{
+    const char *name = "?";
+    void *base = NULL;
+#ifndef _WIN32
+    Dl_info info;
+
+    if (creator != NULL && dladdr(creator, &info) != 0)
+    {
+        if (info.dli_sname != NULL)
+            name = info.dli_sname;
+        base = info.dli_fbase;
+    }
+#endif
+    SDL_Log("null task %u, created at %p (library offset %#lx, in %s), data %d %d %d %d %d %d %d %d",
+            taskId, creator, (unsigned long)((char *)creator - (char *)base), name,
+            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
 }
 
 void Platform_StoreSaveFile(void)

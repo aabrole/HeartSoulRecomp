@@ -28,6 +28,8 @@ extern int gRenderMargin;
 void Platform_SetWidescreen(bool32 enabled);
 
 void Platform_StoreSaveFile(void);
+void Platform_Log(const char *message);
+void Platform_ReportNullTask(u8 taskId, void *creator, const s16 *data);
 void Platform_ReadFlash(u16 sectorNum, u32 offset, u8 *dest, u32 size);
 void Platform_QueueAudio(float *audioBuffer, s32 samplesPerFrame);
 u16 Platform_GetKeyInput(void);

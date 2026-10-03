@@ -1870,6 +1870,12 @@ void SetPokemonCryProgress(u32 val)
 
 bool32 IsPokemonCryPlaying(struct MusicPlayerInfo *mplayInfo)
 {
+#ifdef UBFIX
+    // Callers pass gMPlay_PokemonCry, which is NULL until the first cry plays.
+    // The GBA reads that from the BIOS and gets nothing that looks like a cry.
+    if (mplayInfo == NULL)
+        return FALSE;
+#endif
     struct MusicPlayerTrack *track = mplayInfo->tracks;
 
 #if defined PORTABLE && !defined SOUND_DISABLED

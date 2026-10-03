@@ -4,6 +4,9 @@
 #include "config/general.h"
 #include "malloc.h"
 #include "mini_printf.h"
+#ifdef PORTABLE
+#include "platform.h"
+#endif
 
 #define AGB_PRINT_FLUSH_ADDR 0x9FE209D
 #define AGB_PRINT_STRUCT_ADDR 0x9FE20F8
@@ -241,7 +244,12 @@ void MgbaPrintf(s32 level, const char *ptr, ...)
     vsnprintf(line, sizeof(line), ptr, args);
     #endif
     va_end(args);
-    fprintf(stderr, "[game %d] %s\n", (int)(level & 0x7), line);
+    {
+        char tagged[MGBA_REG_DEBUG_MAX + 16];
+
+        snprintf(tagged, sizeof(tagged), "[game %d] %s", (int)(level & 0x7), line);
+        Platform_Log(tagged);
+    }
 }
 #else
 bool32 MgbaOpen(void)
