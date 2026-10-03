@@ -17,7 +17,12 @@ struct Task
     u8 prev;
     u8 next;
     u8 priority;
+#ifdef VER_64BIT
+    // Some tasks keep structs with pointers in data (e.g. ListMenu)
+    ALIGNED(8) s16 data[NUM_TASK_DATA];
+#else
     s16 data[NUM_TASK_DATA];
+#endif
     TaskFunc followupFunc;
     union {
         void *genericPtr[2];
@@ -27,6 +32,11 @@ struct Task
         struct Sprite *spritePtr;
         struct Pokemon *monPtr;
     } ptr;
+#ifdef VER_64BIT
+    // Set/GetWordTaskArg keep the low 32 bits of a word in two data[] elements,
+    // as on the GBA. A pointer is wider here, so the whole value is kept too.
+    uintptr_t wordArgs[NUM_TASK_DATA];
+#endif
 };
 
 extern struct Task gTasks[];

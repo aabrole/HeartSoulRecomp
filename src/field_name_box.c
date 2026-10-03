@@ -177,6 +177,16 @@ static void WindowFunc_ClearNamebox(u8 bg, u8 L, u8 T, u8 w, u8 h, u8 p)
 
 void SetSpeaker(struct ScriptContext *ctx)
 {
+#ifdef PORTABLE
+    // The argument is pointer-sized, and strings are not in a GBA ROM range.
+    uintptr_t arg = ScriptReadPointer(ctx);
+    const u8 *speaker = NULL;
+
+    if (arg < SP_NAME_COUNT)
+        speaker = gSpeakerNamesTable[arg];
+    else
+        speaker = (const u8 *)arg;
+#else
     u32 arg = ScriptReadWord(ctx);
     const u8 *speaker = NULL;
 
@@ -184,6 +194,7 @@ void SetSpeaker(struct ScriptContext *ctx)
         speaker = gSpeakerNamesTable[arg];
     else if (arg >= ROM_START && arg < ROM_END)
         speaker = (const u8 *)arg;
+#endif
 
     gSpeakerName = speaker;
 }

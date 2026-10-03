@@ -44,6 +44,9 @@ u8 CreateTask(TaskFunc func, u8 priority)
             gTasks[i].priority = priority;
             InsertTask(i);
             memset(gTasks[i].data, 0, sizeof(gTasks[i].data));
+#ifdef VER_64BIT
+            memset(gTasks[i].wordArgs, 0, sizeof(gTasks[i].wordArgs));
+#endif
             gTasks[i].isActive = TRUE;
 #ifdef PORTABLE
             sTaskCreators[i] = __builtin_return_address(0);
@@ -207,6 +210,41 @@ u8 GetTaskCount(void)
     return count;
 }
 
+#ifdef PORTABLE
+// A word is kept in data[dataElem] and data[dataElem + 1], as on the GBA, so
+// code that reads or writes those halves directly still works. (Keeping it in
+// ptr.intPtr[dataElem] wrote past the end of the task for dataElem >= 2.)
+// On 64-bit the full value is also kept in wordArgs and is returned while its
+// low 32 bits still match the halves.
+void SetWordTaskArg(u8 taskId, u8 dataElem, uintptr_t value)
+{
+    if (dataElem < NUM_TASK_DATA - 1)
+    {
+        gTasks[taskId].data[dataElem] = value;
+        gTasks[taskId].data[dataElem + 1] = value >> 16;
+#ifdef VER_64BIT
+        gTasks[taskId].wordArgs[dataElem] = value;
+#endif
+    }
+}
+
+uintptr_t GetWordTaskArg(u8 taskId, u8 dataElem)
+{
+    if (dataElem < NUM_TASK_DATA - 1)
+    {
+        u32 low = (u16)gTasks[taskId].data[dataElem] | ((u32)(u16)gTasks[taskId].data[dataElem + 1] << 16);
+#ifdef VER_64BIT
+        if ((u32)gTasks[taskId].wordArgs[dataElem] == low)
+            return gTasks[taskId].wordArgs[dataElem];
+#endif
+        return low;
+    }
+    else
+    {
+        return 0;
+    }
+}
+#else
 void SetWordTaskArg(u8 taskId, u8 dataElem, uintptr_t value)
 {
     if (dataElem < NUM_TASK_DATA - 1)
@@ -222,3 +260,4 @@ uintptr_t GetWordTaskArg(u8 taskId, u8 dataElem)
     else
         return 0;
 }
+#endif // PORTABLE

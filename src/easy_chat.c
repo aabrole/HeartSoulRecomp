@@ -1234,6 +1234,20 @@ static const u16 sRestrictedWordSpecies[] = {
 };
 
 
+#ifdef PORTABLE
+// In addition to the task defines below, these two elements
+// have their indexes used explicitly because they are pointers,
+// and occupy the next data element as well.
+// SetWordTaskArg/GetWordTaskArg use these defines to
+// read the pointer from the two elements
+#define TASKIDX_WORDS         2
+#define TASKIDX_EXIT_CALLBACK 4
+
+#define tState        data[0]
+#define tType         data[1]
+#define tWords        data[TASKIDX_WORDS] // Occupies 2 and 3
+#define tExitCallback data[TASKIDX_EXIT_CALLBACK] // Occupies 4 and 5
+#else
 // In addition to the task defines below, these two elements
 // have their indexes used explicitly because they are 8-byte
 // pointers, and occupy intPtr instead of data.
@@ -1246,6 +1260,7 @@ static const u16 sRestrictedWordSpecies[] = {
 #define tType         data[1]
 #define tWords        ptr.intPtr[TASKIDX_WORDS]
 #define tExitCallback ptr.intPtr[TASKIDX_EXIT_CALLBACK]
+#endif
 #define tFuncId       data[6]
 #define tPersonType   data[7]
 

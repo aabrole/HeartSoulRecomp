@@ -1793,7 +1793,7 @@ void ScriptSetFollowerNPC(struct ScriptContext *ctx)
     u32 flags = ScriptReadHalfword(ctx);
     u32 setScript = ScriptReadByte(ctx);
     u32 battlePartner = ScriptReadHalfword(ctx);
-    const u8 *script = (const u8 *)ScriptReadWord(ctx);
+    const u8 *script = (const u8 *)ScriptReadPointer(ctx);
 
     if (PlayerHasFollowerNPC())
         return;
@@ -1806,7 +1806,7 @@ void ScriptCreateFollowerNPC(struct ScriptContext *ctx)
 {
     u32 gfx = ScriptReadHalfword(ctx);
     u32 flags = ScriptReadHalfword(ctx);
-    const u8 *script = (const u8 *)ScriptReadWord(ctx);
+    const u8 *script = (const u8 *)ScriptReadPointer(ctx);
     u32 battlePartner = ScriptReadHalfword(ctx);
 
     if (!FNPC_ENABLE_NPC_FOLLOWERS || PlayerHasFollowerNPC())

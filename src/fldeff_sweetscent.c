@@ -64,16 +64,24 @@ void StartSweetScentFieldEffect(void)
     BeginNormalPaletteFade(palettes, 4, 0, 8, RGB_RED);
     taskId = CreateTask(TrySweetScentEncounter, 0);
     gTasks[taskId].data[0] = 0;
+#ifdef PORTABLE
+    SetWordTaskArg(taskId, 1, (uintptr_t)palBuffer); // tPalBuffer1 and tPalBuffer2
+#else
     StoreWordInTwoHalfwords((u16 *)&gTasks[taskId].tPalBuffer1, (u32) palBuffer);
+#endif
     FieldEffectActiveListRemove(FLDEFF_SWEET_SCENT);
 }
 
 static void *GetPalBufferPtr(u32 taskId)
 {
+#ifdef PORTABLE
+    return (void *)GetWordTaskArg(taskId, 1); // tPalBuffer1 and tPalBuffer2
+#else
     u32 palBuffer;
 
     LoadWordFromTwoHalfwords((u16 *)&gTasks[taskId].tPalBuffer1, &palBuffer);
     return (void *) palBuffer;
+#endif
 }
 
 static void FreeDestroyTask(u32 taskId)

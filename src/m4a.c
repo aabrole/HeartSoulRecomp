@@ -616,7 +616,7 @@ void SoundClear(void)
     {
         ((struct SoundChannel *)chan)->statusFlags = 0;
         i--;
-        chan = (void *)((s32)chan + sizeof(struct SoundChannel));
+        chan = (void *)((uintptr_t)chan + sizeof(struct SoundChannel));
     }
 
     chan = soundInfo->cgbChans;
@@ -630,7 +630,7 @@ void SoundClear(void)
             soundInfo->CgbOscOff(i);
             ((struct CgbChannel *)chan)->statusFlags = 0;
             i++;
-            chan = (void *)((s32)chan + sizeof(struct CgbChannel));
+            chan = (void *)((uintptr_t)chan + sizeof(struct CgbChannel));
         }
     }
 
@@ -1653,7 +1653,7 @@ cond_true:
     }
 
 cond_false:
-    track->cmdPtr += 4;
+    track->cmdPtr += sizeof(u8 *); // skip the jump target
 }
 
 void ply_xcmd(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track)
@@ -1685,13 +1685,18 @@ void ply_xwave(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
     wav = 0;
 #endif
 
+#ifdef PORTABLE
+    // The wave pointer is pointer-sized in the song data.
+    memcpy(&wav, track->cmdPtr, sizeof(wav));
+#else
     READ_XCMD_BYTE(wav, 0) // UB: uninitialized variable
     READ_XCMD_BYTE(wav, 1)
     READ_XCMD_BYTE(wav, 2)
     READ_XCMD_BYTE(wav, 3)
+#endif
 
     track->tone.wav = (struct WaveData *)wav;
-    track->cmdPtr += 4;
+    track->cmdPtr += sizeof(wav);
 }
 
 void ply_xtype(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track)

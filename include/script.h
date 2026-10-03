@@ -36,6 +36,7 @@ u16 ScriptPeekHalfword(struct ScriptContext *ctx);
 u32 ScriptReadWord(struct ScriptContext *ctx);
 u32 ScriptPeekWord(struct ScriptContext *ctx);
 u64 ScriptReadQuadWord(struct ScriptContext *ctx);
+uintptr_t ScriptPeekPointer(struct ScriptContext *ctx);
 uintptr_t ScriptReadPointer(struct ScriptContext *ctx);
 void LockPlayerFieldControls(void);
 void UnlockPlayerFieldControls(void);

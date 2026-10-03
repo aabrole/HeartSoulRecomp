@@ -559,6 +559,10 @@ static void VBlankCB(void)
 
 static void SetStructPtr(u8 taskId, void *ptr)
 {
+#ifdef PORTABLE
+    // GetStructPtr reads a whole pointer from the start of data[].
+    memcpy(gTasks[taskId].data, &ptr, sizeof(ptr));
+#else
     u32 structPtr = (u32)(ptr);
     u8 *taskDataPtr = (u8 *)(&gTasks[taskId].data[0]);
 
@@ -566,6 +570,7 @@ static void SetStructPtr(u8 taskId, void *ptr)
     taskDataPtr[1] = structPtr >> 8;
     taskDataPtr[2] = structPtr >> 16;
     taskDataPtr[3] = structPtr >> 24;
+#endif
 }
 
 //Digit and arrow functions
@@ -1655,6 +1660,10 @@ static void UpdateSubmenuFourOptionValue(u8 taskId, bool8 increment)
     }
 }
 
+#ifdef PORTABLE
+#define READ_PTR_FROM_TASK(taskId, dataId) ((void *)GetWordTaskArg(taskId, dataId))
+#define STORE_PTR_IN_TASK(ptr, taskId, dataId) SetWordTaskArg(taskId, dataId, (uintptr_t)(ptr))
+#else
 #define READ_PTR_FROM_TASK(taskId, dataId)              \
     (void *)(                                           \
     ((u16)(gTasks[taskId].data[dataId]) |               \
@@ -1665,6 +1674,7 @@ static void UpdateSubmenuFourOptionValue(u8 taskId, bool8 increment)
     gTasks[taskId].data[dataId] = (u32)(ptr);           \
     gTasks[taskId].data[dataId + 1] = (u32)(ptr) >> 16; \
 }
+#endif
 
 #define sAnimId    data[2]
 #define sAnimDelay data[3]

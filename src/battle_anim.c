@@ -726,8 +726,8 @@ static void Cmd_createspriteontargets_onpos(void)
     u8 battlerArgIndex;
 
     sBattleAnimScriptPtr++;
-    template = (const struct SpriteTemplate *)(T2_READ_32(sBattleAnimScriptPtr));
-    sBattleAnimScriptPtr += 4;
+    template = (const struct SpriteTemplate *)(T2_READ_PTRSIZE(sBattleAnimScriptPtr));
+    sBattleAnimScriptPtr += DSIZEPTR;
 
     argVar = sBattleAnimScriptPtr[0];
     sBattleAnimScriptPtr++;
@@ -750,8 +750,8 @@ static void Cmd_createspriteontargets(void)
     u8 battlerArgIndex;
 
     sBattleAnimScriptPtr++;
-    template = (const struct SpriteTemplate *)(T2_READ_32(sBattleAnimScriptPtr));
-    sBattleAnimScriptPtr += 4;
+    template = (const struct SpriteTemplate *)(T2_READ_PTRSIZE(sBattleAnimScriptPtr));
+    sBattleAnimScriptPtr += DSIZEPTR;
 
     argVar = sBattleAnimScriptPtr[0];
     sBattleAnimScriptPtr++;
@@ -807,8 +807,8 @@ static void Cmd_createvisualtaskontargets(void)
 
     sBattleAnimScriptPtr++;
 
-    taskFunc = (TaskFunc)T2_READ_32(sBattleAnimScriptPtr);
-    sBattleAnimScriptPtr += 4;
+    taskFunc = (TaskFunc)T2_READ_PTRSIZE(sBattleAnimScriptPtr);
+    sBattleAnimScriptPtr += DSIZEPTR;
 
     taskPriority = sBattleAnimScriptPtr[0];
     sBattleAnimScriptPtr++;
@@ -2278,7 +2278,7 @@ static void Cmd_jumpifmovetypeequal(void)
     const enum Type *type = sBattleAnimScriptPtr + 1;
     sBattleAnimScriptPtr += 2;
     if (*type != GetBattleMoveType(gCurrentMove))
-        sBattleAnimScriptPtr += 4;
+        sBattleAnimScriptPtr += DSIZEPTR;
     else
         sBattleAnimScriptPtr = T2_READ_PTR(sBattleAnimScriptPtr);
 }

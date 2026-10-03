@@ -2266,8 +2266,13 @@ static void CreateBPShopCommon(u8 martType, const struct BPShopEntry *entries)
 
     taskId = CreateTask(Task_ShopMenu, 8);
     data = gTasks[taskId].data;
+#ifdef PORTABLE
+    // Task_GoToBuyOrSellMenu calls ptr.funcPtr; the halves below are not read.
+    gTasks[taskId].ptr.funcPtr = CB2_InitBuyMenu;
+#else
     data[8] = (u32)CB2_InitBuyMenu >> 16;
     data[9] = (u32)CB2_InitBuyMenu;
+#endif
     gTasks[taskId].func = Task_GoToBuyOrSellMenu;
     FadeScreen(FADE_TO_BLACK, 0);
 }
@@ -2305,8 +2310,13 @@ void CreateKurtBallShop(void)
 
     taskId = CreateTask(Task_ShopMenu, 8);
     data = gTasks[taskId].data;
+#ifdef PORTABLE
+    // Task_GoToBuyOrSellMenu calls ptr.funcPtr; the halves below are not read.
+    gTasks[taskId].ptr.funcPtr = CB2_InitBuyMenu;
+#else
     data[8] = (u32)CB2_InitBuyMenu >> 16;
     data[9] = (u32)CB2_InitBuyMenu;
+#endif
     gTasks[taskId].func = Task_GoToBuyOrSellMenu;
     FadeScreen(FADE_TO_BLACK, 0);
 }

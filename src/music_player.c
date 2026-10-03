@@ -28,8 +28,8 @@ void GBSTrack_Stop(struct MusicPlayerTrack *track);
 
 // The sound code looks at the same memory through three sets of structs: the
 // game's (gba/m4a_internal.h), this player's (music_player.h, sound_mixer.h)
-// and the Game Boy sound engine's (gbs.h). They only work while they line up.
-#ifndef VER_64BIT
+// and the Game Boy sound engine's (gbs.h). They only work while they line up,
+// on 32-bit and 64-bit alike.
 _Static_assert(sizeof(struct MP2KTrack) == sizeof(struct MusicPlayerTrack), "MP2KTrack size");
 _Static_assert(offsetof(struct MP2KTrack, chan) == offsetof(struct MusicPlayerTrack, chan), "MP2KTrack chan");
 _Static_assert(offsetof(struct MP2KTrack, ct) == offsetof(struct MusicPlayerTrack, unk_3C), "MP2KTrack ct");
@@ -46,7 +46,6 @@ _Static_assert(offsetof(struct MixerSource, track) == offsetof(struct SoundChann
 _Static_assert(offsetof(struct MixerSource, cgbStatus) == offsetof(struct CgbChannel, modify), "CgbChannel modify");
 _Static_assert(offsetof(struct SoundMixerState, chans) == offsetof(struct SoundInfo, chans), "SoundMixerState chans");
 _Static_assert(offsetof(struct SoundMixerState, outBuffer) == offsetof(struct SoundInfo, pcmBuffer), "SoundMixerState outBuffer");
-#endif
 
 // Diagnostics for HNS_AUDIO_LOG. They answer "did this song produce notes" and
 // "did the data ask for something this player does not do" without ears.

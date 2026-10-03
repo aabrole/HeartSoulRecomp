@@ -1347,11 +1347,21 @@ static void Task_MoveBgDots(u8 taskId)
     ChangeBgX(3, 0x80, BG_COORD_ADD);
 }
 
+// Words for Task_UpdateBgDotsPalette, set/get via Set/GetWordTaskArg.
+#ifdef PORTABLE
+// Each word occupies data[n] and data[n + 1]; data[0] is the counter.
+#define TASKIDX_PAL1 1
+#define TASKIDX_PAL2 3
+#else
+#define TASKIDX_PAL1 0
+#define TASKIDX_PAL2 1
+#endif
+
 static void CreateBgDotPurplePalTask(void)
 {
     u8 taskId = CreateTask(Task_UpdateBgDotsPalette, 3);
-    SetWordTaskArg(taskId, 0, (uintptr_t)(sPokenavBgDotsPal + 1));
-    SetWordTaskArg(taskId, 1, (uintptr_t)(sPokenavBgDotsPal + 7));
+    SetWordTaskArg(taskId, TASKIDX_PAL1, (uintptr_t)(sPokenavBgDotsPal + 1));
+    SetWordTaskArg(taskId, TASKIDX_PAL2, (uintptr_t)(sPokenavBgDotsPal + 7));
 }
 
 static void ChangeBgDotsColorToPurple(void)
@@ -1362,8 +1372,8 @@ static void ChangeBgDotsColorToPurple(void)
 static void CreateBgDotLightBluePalTask(void)
 {
     u8 taskId = CreateTask(Task_UpdateBgDotsPalette, 3);
-    SetWordTaskArg(taskId, 0, (uintptr_t)(sPokenavBgDotsPal + 7));
-    SetWordTaskArg(taskId, 1, (uintptr_t)(sPokenavBgDotsPal + 1));
+    SetWordTaskArg(taskId, TASKIDX_PAL1, (uintptr_t)(sPokenavBgDotsPal + 7));
+    SetWordTaskArg(taskId, TASKIDX_PAL2, (uintptr_t)(sPokenavBgDotsPal + 1));
 }
 
 static bool32 IsTaskActive_UpdateBgDotsPalette(void)
@@ -1375,8 +1385,8 @@ static void Task_UpdateBgDotsPalette(u8 taskId)
 {
     u16 sp8[2];
     s16 *data = gTasks[taskId].data;
-    const u16 *pal1 = (const u16 *)GetWordTaskArg(taskId, 0);
-    const u16 *pal2 = (const u16 *)GetWordTaskArg(taskId, 1);
+    const u16 *pal1 = (const u16 *)GetWordTaskArg(taskId, TASKIDX_PAL1);
+    const u16 *pal2 = (const u16 *)GetWordTaskArg(taskId, TASKIDX_PAL2);
 
     PokenavCopyPalette(pal1, pal2, 2, 12, ++data[0], sp8);
     LoadPalette(sp8, BG_PLTT_ID(3) + 1, PLTT_SIZEOF(2));

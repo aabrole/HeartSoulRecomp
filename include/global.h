@@ -128,7 +128,18 @@ int strcmp(const char *, const char*);
 #define T1_READ_8(ptr)  ((ptr)[0])
 #define T1_READ_16(ptr) ((ptr)[0] | ((ptr)[1] << 8))
 #define T1_READ_32(ptr) ((ptr)[0] | ((ptr)[1] << 8) | ((ptr)[2] << 16) | ((ptr)[3] << 24))
+#ifdef PORTABLE
+// Script data is not aligned; read it bytewise so the compiler may not assume alignment.
+static inline u64 ReadUnalignedU64(const void *ptr)
+{
+    u64 value;
+    __builtin_memcpy(&value, ptr, sizeof(value));
+    return value;
+}
+#define T1_READ_64(ptr) ReadUnalignedU64(ptr)
+#else
 #define T1_READ_64(ptr) (*(u64*)(ptr))
+#endif
 
 #ifdef VER_64BIT
 #define T1_READ_PTR(ptr) (u8 *) T1_READ_64(ptr)
@@ -142,7 +153,11 @@ int strcmp(const char *, const char*);
 #define T2_READ_8(ptr)  ((ptr)[0])
 #define T2_READ_16(ptr) ((ptr)[0] + ((ptr)[1] << 8))
 #define T2_READ_32(ptr) ((ptr)[0] + ((ptr)[1] << 8) + ((ptr)[2] << 16) + ((ptr)[3] << 24))
+#ifdef PORTABLE
+#define T2_READ_64(ptr) ReadUnalignedU64(ptr)
+#else
 #define T2_READ_64(ptr) (*(u64*)(ptr))
+#endif
 
 #ifdef VER_64BIT
 #define T2_READ_PTR(ptr) (void *) T2_READ_64(ptr)
