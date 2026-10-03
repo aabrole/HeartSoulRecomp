@@ -225,27 +225,24 @@ u64 ScriptReadQuadWord(struct ScriptContext *ctx)
     return value0;
 }
 
-uintptr_t ScriptReadPointer(struct ScriptContext *ctx)
-{
-    #ifdef VER_64BIT
-    uintptr_t value0 = *((u64*)ctx->scriptPtr);
-    #else
-    uintptr_t value0 = T2_READ_32(ctx->scriptPtr);
-    #endif
-    ctx->scriptPtr += DSIZEPTR;
-    return value0;
-}
-
-#ifdef PORTABLE
+// Pointers in scripts are pointer-sized (ptrvalue in asm/macros/bit_width.inc).
 uintptr_t ScriptPeekPointer(struct ScriptContext *ctx)
 {
     #ifdef VER_64BIT
-    return *((u64*)ctx->scriptPtr);
+    uintptr_t value0;
+    memcpy(&value0, ctx->scriptPtr, sizeof(value0)); // scripts are not aligned
     #else
-    return T2_READ_32(ctx->scriptPtr);
+    uintptr_t value0 = T2_READ_32(ctx->scriptPtr);
     #endif
+    return value0;
 }
-#endif
+
+uintptr_t ScriptReadPointer(struct ScriptContext *ctx)
+{
+    uintptr_t value0 = ScriptPeekPointer(ctx);
+    ctx->scriptPtr += DSIZEPTR;
+    return value0;
+}
 
 void LockPlayerFieldControls(void)
 {
@@ -691,8 +688,9 @@ bool32 Script_MatchesCallNative(const u8 *script, void *funcPtr, bool32 requestE
     if (script[0] != SCR_OP_CALLNATIVE)
         return FALSE;
 #ifdef PORTABLE
-    // The operand is a pointer, 8 bytes in a 64-bit build.
-    uintptr_t callnativeFunc = (uintptr_t)T1_READ_PTR(script + 1);
+    // The function pointer is pointer-sized and carries SCRIPT_EFFECT_TAG.
+    uintptr_t callnativeFunc;
+    memcpy(&callnativeFunc, &script[1], sizeof(callnativeFunc));
     uintptr_t targetFunc = (uintptr_t)funcPtr;
 #else
     u32 callnativeFunc = (((((script[4] << 8) + script[3]) << 8) + script[2]) << 8) + script[1];
@@ -712,11 +710,7 @@ bool32 Script_MatchesSpecial(const u8 *script, void *funcPtr)
     typedef u16 (*SpecialFunc)(void);
     extern const SpecialFunc gSpecials[];
     SpecialFunc specialFunc = gSpecials[(script[2] << 8) + script[1]];
-#ifdef PORTABLE
-    if ((uintptr_t)Script_UntagFunc(specialFunc) == (uintptr_t)funcPtr)
-#else
-    if ((u32)Script_UntagFunc(specialFunc) == ((u32)funcPtr))
-#endif
+    if ((uintptr_t)Script_UntagFunc(specialFunc) == ((uintptr_t)funcPtr))
         return TRUE;
     return FALSE;
 }

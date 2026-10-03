@@ -65,8 +65,7 @@ void StartSweetScentFieldEffect(void)
     taskId = CreateTask(TrySweetScentEncounter, 0);
     gTasks[taskId].data[0] = 0;
 #ifdef PORTABLE
-    // A native pointer may not fit in two halfwords.
-    SetWordTaskArg(taskId, 1, (uintptr_t)palBuffer);
+    SetWordTaskArg(taskId, 1, (uintptr_t)palBuffer); // tPalBuffer1 and tPalBuffer2
 #else
     StoreWordInTwoHalfwords((u16 *)&gTasks[taskId].tPalBuffer1, (u32) palBuffer);
 #endif
@@ -76,13 +75,13 @@ void StartSweetScentFieldEffect(void)
 static void *GetPalBufferPtr(u32 taskId)
 {
 #ifdef PORTABLE
-    uintptr_t palBuffer = GetWordTaskArg(taskId, 1);
+    return (void *)GetWordTaskArg(taskId, 1); // tPalBuffer1 and tPalBuffer2
 #else
     u32 palBuffer;
 
     LoadWordFromTwoHalfwords((u16 *)&gTasks[taskId].tPalBuffer1, &palBuffer);
-#endif
     return (void *) palBuffer;
+#endif
 }
 
 static void FreeDestroyTask(u32 taskId)

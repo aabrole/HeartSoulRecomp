@@ -898,7 +898,7 @@ u32 FieldEffectScript_ReadWord(u8 **script)
 #ifdef VER_64BIT
 u64 FieldEffectScript_ReadPtr(u8 **script)
 {
-    return *(u64*)(*script);
+    return T1_READ_64(*script); // scripts are not aligned
 }
 #else
 u32 FieldEffectScript_ReadPtr(u8 **script)
@@ -921,13 +921,8 @@ void FieldEffectScript_LoadTiles(u8 **script)
 
 static bool32 ShouldFieldEffectBeFogBlended(u8 *script)
 {
-#ifdef PORTABLE
     uintptr_t ptr = FieldEffectScript_ReadPtr(&script);
     if (ptr == (uintptr_t)FldEff_TallGrass)
-#else
-    u32 ptr = FieldEffectScript_ReadWord(&script);
-    if (ptr == (u32)FldEff_TallGrass)
-#endif
         return FALSE;
     return TRUE;
 }

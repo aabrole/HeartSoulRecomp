@@ -629,13 +629,8 @@ static struct BattleDebugMenu *GetStructPtr(u8 taskId)
 static void SetStructPtr(u8 taskId, void *ptr)
 {
 #ifdef PORTABLE
-    // Read back with T1_READ_PTR, which takes all of a native pointer.
-    uintptr_t structPtr = (uintptr_t)(ptr);
-    u8 *taskDataPtr = (u8 *)(&gTasks[taskId].data[0]);
-    u32 i;
-
-    for (i = 0; i < sizeof(structPtr); i++)
-        taskDataPtr[i] = structPtr >> (8 * i);
+    // GetStructPtr reads a whole pointer from the start of data[].
+    memcpy(gTasks[taskId].data, &ptr, sizeof(ptr));
 #else
     u32 structPtr = (u32)(ptr);
     u8 *taskDataPtr = (u8 *)(&gTasks[taskId].data[0]);

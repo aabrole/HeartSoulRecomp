@@ -1330,7 +1330,7 @@ bool8 ScrCmd_applymovement(struct ScriptContext *ctx)
 bool8 ScrCmd_applymovementnofollower(struct ScriptContext *ctx)
 {
     u16 localId = VarGet(ScriptReadHalfword(ctx));
-    const u8 *movementScript = (const u8 *)ScriptReadPtr(ctx);
+    const u8 *movementScript = (const u8 *)ScriptReadPointer(ctx);
     struct ObjectEvent *objEvent;
 
     Script_RequestEffects(SCREFF_V1 | SCREFF_HARDWARE);
@@ -2485,13 +2485,13 @@ bool8 ScrCmd_dynmultichoice(struct ScriptContext *ctx)
     if (maxBeforeScroll == 0xFF)
         maxBeforeScroll = DYN_MULTICHOICE_DEFAULT_MAX_BEFORE_SCROLL;
 
-    if ((const u8*) ScriptPeekPtr(ctx) != NULL)
+    if ((const u8*) ScriptPeekPointer(ctx) != NULL)
     {
         items = AllocZeroed(sizeof(struct ListMenuItem) * argc);
         for (i = 0; i < argc; ++i)
         {
             u8 *nameBuffer = Alloc(100);
-            const u8 *arg = (const u8 *) ScriptReadPtr(ctx);
+            const u8 *arg = (const u8 *) ScriptReadPointer(ctx);
             StringExpandPlaceholders(nameBuffer, arg);
             items[i].name = nameBuffer;
             items[i].id = i;
@@ -2528,7 +2528,7 @@ bool8 ScrCmd_dynmultichoice(struct ScriptContext *ctx)
 
 bool8 ScrCmd_dynmultipush(struct ScriptContext *ctx)
 {
-    const u8 *name = (const u8*) ScriptReadPtr(ctx);
+    const u8 *name = (const u8*) ScriptReadPointer(ctx);
     u32 id = VarGet(ScriptReadHalfword(ctx));
 
     Script_RequestEffects(SCREFF_V1 | SCREFF_HARDWARE);
@@ -4172,7 +4172,7 @@ bool8 ScrCmd_getmoverelearnerstate(struct ScriptContext *ctx)
 
 bool8 ScrCmd_istmrelearneractive(struct ScriptContext *ctx)
 {
-    const u8 *ptr = (const u8 *)ScriptReadPtr(ctx);
+    const u8 *ptr = (const u8 *)ScriptReadPointer(ctx);
 
     Script_RequestEffects(SCREFF_V1);
 
@@ -4213,7 +4213,7 @@ bool8 ScrCmd_setworldmapflag(struct ScriptContext * ctx)
 
 bool8 ScrCmd_getbraillestringwidth(struct ScriptContext * ctx)
 {
-    u8 *msg = (u8 *)ScriptReadPtr(ctx);
+    u8 *msg = (u8 *)ScriptReadPointer(ctx);
 
     Script_RequestEffects(SCREFF_V1);
 

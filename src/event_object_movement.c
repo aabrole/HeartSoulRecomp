@@ -2934,10 +2934,10 @@ void GetFollowerAction(struct ScriptContext *ctx) // Essentially a big switch fo
         {
             for (i = 0; i < 4; i++)
             {
-                if (!((uintptr_t*)gFollowerConditionalMessages[multi].text)[i])
+                if (!((const u8 *const *)gFollowerConditionalMessages[multi].text)[i])
                     break;
             }
-            ctx->data[0] = i ? ((uintptr_t*)gFollowerConditionalMessages[multi].text)[Random() % i] : 0;
+            ctx->data[0] = i ? (uintptr_t)((const u8 *const *)gFollowerConditionalMessages[multi].text)[Random() % i] : 0;
         }
         ScriptCall(ctx, gFollowerConditionalMessages[multi].script ? gFollowerConditionalMessages[multi].script : gFollowerBasicMessages[emotion].script);
         return;

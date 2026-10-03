@@ -743,7 +743,7 @@ static u16 GetTrainerFlagFromScript(const u8 *script)
     }
     else if (Script_MatchesCallNative(script, NativeVsSeekerRematchId, TRUE))
     {
-        ctx->scriptPtr = script + 5;
+        ctx->scriptPtr = script + 1 + DSIZEPTR; // callnative and its function pointer
         trainerFlag = ScriptPeekHalfword(ctx);
     }
     Free(ctx);

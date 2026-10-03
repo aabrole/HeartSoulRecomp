@@ -1375,7 +1375,7 @@ static void DebugTask_HandleMenuInput_General(u8 taskId)
             }
             else if (option.action == DebugAction_Trainers_ChooseTrainer)
             {
-                DebugAction_Trainers_ChooseTrainer(taskId, (u32)option.actionParams);
+                DebugAction_Trainers_ChooseTrainer(taskId, (u32)(uintptr_t)option.actionParams);
             }
             else
             {
@@ -1896,20 +1896,12 @@ static void ParseObjectEventScript(const u8 *script)
     }
     else if (Script_MatchesCallNative(script, NativeVsSeekerRematchId, TRUE))
     {
-#ifdef PORTABLE
-        ctx->scriptPtr = script + 1 + DSIZEPTR;
-#else
-        ctx->scriptPtr = script + 5;
-#endif
+        ctx->scriptPtr = script + 1 + DSIZEPTR; // callnative and its function pointer
         sDebugMenuListData->data[0] = ScriptPeekHalfword(ctx);
     }
     else if (Script_MatchesSpecial(script, SavePlayerParty) && Script_MatchesCallNative(script + 3, SetMultiTrainerBattle, FALSE))
     {
-#ifdef PORTABLE
-        ctx->scriptPtr = script + 4 + DSIZEPTR;
-#else
-        ctx->scriptPtr = script + 8;
-#endif
+        ctx->scriptPtr = script + 3 + 1 + DSIZEPTR; // special, then callnative and its function pointer
         SetMultiTrainerBattle(ctx);
     }
     Free(ctx);

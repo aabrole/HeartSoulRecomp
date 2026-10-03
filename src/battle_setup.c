@@ -2536,9 +2536,9 @@ void SetMultiTrainerBattle(struct ScriptContext *ctx)
     InitTrainerBattleParameter();
 
     TRAINER_BATTLE_PARAM.opponentA = ScriptReadHalfword(ctx);
-    TRAINER_BATTLE_PARAM.defeatTextA = (u8*)ScriptReadPtr(ctx);
+    TRAINER_BATTLE_PARAM.defeatTextA = (u8*)ScriptReadPointer(ctx);
     TRAINER_BATTLE_PARAM.opponentB = ScriptReadHalfword(ctx);
-    TRAINER_BATTLE_PARAM.defeatTextB = (u8*)ScriptReadPtr(ctx);
+    TRAINER_BATTLE_PARAM.defeatTextB = (u8*)ScriptReadPointer(ctx);
     gPartnerTrainerId = TRAINER_PARTNER(ScriptReadHalfword(ctx));
 };
 

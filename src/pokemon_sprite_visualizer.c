@@ -560,13 +560,8 @@ static void VBlankCB(void)
 static void SetStructPtr(u8 taskId, void *ptr)
 {
 #ifdef PORTABLE
-    // Read back with T1_READ_PTR, which takes all of a native pointer.
-    uintptr_t structPtr = (uintptr_t)(ptr);
-    u8 *taskDataPtr = (u8 *)(&gTasks[taskId].data[0]);
-    u32 i;
-
-    for (i = 0; i < sizeof(structPtr); i++)
-        taskDataPtr[i] = structPtr >> (8 * i);
+    // GetStructPtr reads a whole pointer from the start of data[].
+    memcpy(gTasks[taskId].data, &ptr, sizeof(ptr));
 #else
     u32 structPtr = (u32)(ptr);
     u8 *taskDataPtr = (u8 *)(&gTasks[taskId].data[0]);
@@ -1666,7 +1661,6 @@ static void UpdateSubmenuFourOptionValue(u8 taskId, bool8 increment)
 }
 
 #ifdef PORTABLE
-// A native pointer may not fit in two halfwords.
 #define READ_PTR_FROM_TASK(taskId, dataId) ((void *)GetWordTaskArg(taskId, dataId))
 #define STORE_PTR_IN_TASK(ptr, taskId, dataId) SetWordTaskArg(taskId, dataId, (uintptr_t)(ptr))
 #else

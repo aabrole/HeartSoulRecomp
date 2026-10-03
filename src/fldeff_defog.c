@@ -39,8 +39,13 @@ bool8 FldEff_Defog(void)
 {
     u8 taskId = CreateFieldMoveTask();
 
+#ifdef PORTABLE
+    // Task_DoFieldMove_RunFunc calls ptr.funcPtr; the halves below are not read.
+    gTasks[taskId].ptr.funcPtr = FieldMove_Defog;
+#else
     gTasks[taskId].data[8] = (uintptr_t)FieldMove_Defog>> 16;
     gTasks[taskId].data[9] = (uintptr_t)FieldMove_Defog;
+#endif
     return FALSE;
 }
 

@@ -2069,18 +2069,26 @@ void FillSpriteRectSpriteWithSprite(u32 spriteId, u32 left, u32 top, u32 width, 
 
 static void StorePointerInSpriteData(struct Sprite *sprite, const u32 *ptr)
 {
-    u16 low = ((u32)ptr) & 0xFFFF;
-    u16 hi = ((u32)ptr) >> 16;
+    u16 low = ((uintptr_t)ptr) & 0xFFFF;
+    u16 hi = ((uintptr_t)ptr) >> 16;
 
     sprite->data[3] = (s16)low;
     sprite->data[4] = (s16)hi;
+#ifdef PORTABLE
+    // A pointer may not fit in two halfwords.
+    sprite->ptr.uintPtr = (uintptr_t)ptr;
+#endif
 }
 
 u32 *GetSrcPtrFromSprite(struct Sprite *sprite)
 {
+#ifdef PORTABLE
+    u32 *ptr = (u32 *)sprite->ptr.uintPtr;
+#else
     u16 low = (u16)sprite->data[3];
     u16 hi = (u16)sprite->data[4];
     u32 *ptr = (u32 *)(low | (hi << 16));
+#endif
     assertf(ptr != NULL, "Sprite pointer must not be NULL");
     return ptr;
 }
