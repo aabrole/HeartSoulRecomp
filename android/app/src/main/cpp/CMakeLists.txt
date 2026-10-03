@@ -67,3 +67,9 @@ target_compile_options(main PRIVATE
 # keeps a same-named function in a system library from being used instead.
 target_link_options(main PRIVATE -Wl,-Bsymbolic)
 target_link_libraries(main PRIVATE SDL2::SDL2 m log)
+
+option(HNS_ASAN "Build the game with AddressSanitizer" OFF)
+if(HNS_ASAN)
+    target_compile_options(main PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(main PRIVATE -fsanitize=address)
+endif()

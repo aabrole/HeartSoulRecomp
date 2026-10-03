@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+// -Phns.asan=true builds with AddressSanitizer, for hunting memory errors on
+// a device. Reports go to logcat. Not for normal play: it is slower.
+def hnsAsan = (project.findProperty('hns.asan') ?: 'false') == 'true'
+
 android {
     namespace 'com.heartsoul.recomp'
     compileSdk 34
@@ -22,7 +26,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm'
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_ARM_MODE=arm', "-DHNS_ASAN=${hnsAsan ? 'ON' : 'OFF'}"
             }
         }
     }
@@ -35,4 +39,23 @@ android {
     }
 
     sourceSets.main.java.srcDirs += '../SDL2/android-project/app/src/main/java'
+
+    if (hnsAsan) {
+        // The sanitizer runtime is preloaded by wrap.sh, which Android runs for
+        // debuggable apps. Both must be extracted to disk to be found.
+        sourceSets.main.jniLibs.srcDir(layout.buildDirectory.dir('generated/asanLibs'))
+        sourceSets.main.resources.srcDir('src/asan/resources')
+        packagingOptions.jniLibs.useLegacyPackaging = true
+    }
+}
+
+tasks.register('copyAsanRuntime', Copy) {
+    // Resolved when the task runs, once the NDK location is known.
+    from { fileTree(android.ndkDirectory).matching { include '**/libclang_rt.asan-arm-android.so' }.files }
+    into layout.buildDirectory.dir('generated/asanLibs/armeabi-v7a')
+}
+
+tasks.named('preBuild').configure {
+    if (hnsAsan)
+        dependsOn tasks.named('copyAsanRuntime')
 }
