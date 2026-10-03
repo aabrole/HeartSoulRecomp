@@ -144,7 +144,8 @@ string generate_map_header_text(Json map_data, Json layouts_data) {
 	//text << ".include \"asm/macros/bit_width.inc\"\n\n";
     text << get_generated_warning("data/maps/" + mapName + "/map.json", true);
 
-    text << mapName << ":\n"
+    text << "\tptr_align\n"
+         << mapName << ":\n"
          << "\tptrvalue " << json_to_string(layout, "name") << "\n";
 
     if (map_data.object_items().find("shared_events_map") != map_data.object_items().end())
@@ -185,7 +186,8 @@ string generate_map_header_text(Json map_data, Json layouts_data) {
     if (version == "firered")
         text << "\t.byte " << json_to_string(map_data, "floor_number") << "\n";
 
-     text << "\t.byte " << json_to_string(map_data, "battle_scene") << "\n\n";
+     text << "\t.byte " << json_to_string(map_data, "battle_scene") << "\n";
+     text << "\tspace64 4\n\n"; // struct MapHeader ends with padding on 64-bit
 
     return text.str();
 }
@@ -213,7 +215,7 @@ string generate_map_connections_text(Json map_data) {
     vector<string> existing_maps = get_existing_maps();
     ostringstream text;
     text << get_generated_warning("data/maps/" + mapName + "/map.json", true);
-    text << mapName << "_MapConnectionsList:\n";
+    text << "\tptr_align\n" << mapName << "_MapConnectionsList:\n";
 
     for (auto &connection : map_data["connections"].array_items()) {
         auto it = find(existing_maps.begin(), existing_maps.end(), json_to_string(connection, "map"));
@@ -241,7 +243,7 @@ string generate_map_events_text(Json map_data) {
 
     ostringstream text;
     text << get_generated_warning("data/maps/" + mapName + "/map.json", true);
-    text << "\t.align 2\n\n";
+    text << "\tptr_align\n\n";
 
     string objects_label, warps_label, coords_label, bgs_label;
 
@@ -300,7 +302,7 @@ string generate_map_events_text(Json map_data) {
 
     if (map_data["coord_events"].array_items().size() > 0) {
         coords_label = mapName + "_MapCoordEvents";
-        text << coords_label << ":\n";
+        text << "\tptr_align\n" << coords_label << ":\n";
         for (auto &coord_event : map_data["coord_events"].array_items()) {
             string type = json_to_string(coord_event, "type");
             if (type == "trigger") {
@@ -329,7 +331,7 @@ string generate_map_events_text(Json map_data) {
 
     if (map_data["bg_events"].array_items().size() > 0) {
         bgs_label = mapName + "_MapBGEvents";
-        text << bgs_label << ":\n";
+        text << "\tptr_align\n" << bgs_label << ":\n";
         for (auto &bg_event : map_data["bg_events"].array_items()) {
             string type = json_to_string(bg_event, "type");
             if (type == "sign") {
@@ -373,7 +375,7 @@ string generate_map_events_text(Json map_data) {
         bgs_label = "NULL";
     }
 
-    text << mapName << "_MapEvents::\n"
+    text << "\tptr_align\n" << mapName << "_MapEvents::\n"
          << "\tmap_events " << objects_label << ", " << warps_label << ", "
          << coords_label << ", " << bgs_label << "\n\n";
 
@@ -465,6 +467,7 @@ string generate_groups_text(Json groups_data, vector<string> &invalid_maps) {
     ostringstream text;
 
     text << get_generated_warning("data/maps/map_groups.json", true);
+    text << "\tptr_align\n";
 
     for (auto &key : groups_data["group_order"].array_items()) {
         string group = json_to_string(key);
@@ -483,7 +486,7 @@ string generate_groups_text(Json groups_data, vector<string> &invalid_maps) {
         text << "\n";
     }
 
-    text << "\t.align 2\n" << "gMapGroups::\n";
+    text << "\tptr_align\n" << "gMapGroups::\n";
     for (auto &group : groups_data["group_order"].array_items()) {
         text << "\tptrvalue " << json_to_string(group) << "\n";
     }
@@ -784,10 +787,10 @@ string generate_layout_headers_text(Json layouts_data) {
              << "\t.incbin \"" << json_to_string(layout, "border_filepath") << "\"\n\n"
              << blockdata_label << "::\n"
              << "\t.incbin \"" << json_to_string(layout, "blockdata_filepath") << "\"\n\n"
-             << "\t.align 2\n"
+             << "\tptr_align\n"
              << layoutName << "::\n"
-             << "\tptrvalue " << json_to_string(layout, "width") << "\n"
-             << "\tptrvalue " << json_to_string(layout, "height") << "\n"
+             << "\t.4byte " << json_to_string(layout, "width") << "\n"
+             << "\t.4byte " << json_to_string(layout, "height") << "\n"
              << "\tptrvalue " << border_label << "\n"
              << "\tptrvalue " << blockdata_label << "\n"
              << "\tptrvalue " << json_to_string(layout, "primary_tileset") << "\n"
@@ -810,6 +813,7 @@ string generate_layout_headers_text(Json layouts_data) {
             text << "\t.2byte 0\n"
                  << "\t.byte 0\n";
         }
+        text << "\tspace64 4\n"; // struct MapLayout ends with padding on 64-bit
         text << "\n";
     }
 
@@ -821,7 +825,7 @@ string generate_layouts_table_text(Json layouts_data) {
 
     text << get_generated_warning("data/layouts/layouts.json", true);
 
-    text << "\t.align 2\n"
+    text << "\tptr_align\n"
          << json_to_string(layouts_data, "layouts_table_label") << "::\n";
 
     for (auto &layout : layouts_data["layouts"].array_items()) {

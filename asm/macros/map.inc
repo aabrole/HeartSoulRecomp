@@ -43,7 +43,7 @@
 	ptrvalue \script
 	.2byte \event_flag
 	.space 2  @ Padding
-	space64 4
+	@ No 64-bit tail padding either: packed, aligned(4) makes the struct 0x1C bytes there.
 	inc _num_npcs
 	.endm
 
