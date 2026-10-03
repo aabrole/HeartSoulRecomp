@@ -96,7 +96,13 @@ struct GFRomHeader
 
 // This seems to need to be in the text section for some reason.
 // To avoid a changed section attributes warning it's put in a special .text.header_gf section.
-__attribute__((section(".text.header_gf"))) USED static const struct GFRomHeader sGFRomHeader = {
+// A native build has no ROM header to fill. The struct holds pointers, which
+// need relocating in a position-independent library, and a writable section
+// named .text would make Android reject the library's code segment.
+#ifndef PORTABLE
+__attribute__((section(".text.header_gf")))
+#endif
+USED static const struct GFRomHeader sGFRomHeader = {
     .version = GAME_VERSION,
     .language = GAME_LANGUAGE,
     .gameName = "pokemon emerald version",

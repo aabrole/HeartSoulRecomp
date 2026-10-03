@@ -27,7 +27,13 @@ struct RHHRomHeader
     /*0x17*/ u8 padding;
 };
 
-__attribute__((section(".text.header_rhh"))) USED static const struct RHHRomHeader sRHHRomHeader =
+// A native build has no ROM header to fill. The struct holds pointers, which
+// need relocating in a position-independent library, and a writable section
+// named .text would make Android reject the library's code segment.
+#ifndef PORTABLE
+__attribute__((section(".text.header_rhh")))
+#endif
+USED static const struct RHHRomHeader sRHHRomHeader =
 {
     .rhh_magic = { 'R', 'H', 'H', 'E', 'X', 'P' },
     .expansionVersionMajor = EXPANSION_VERSION_MAJOR,
