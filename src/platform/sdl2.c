@@ -86,6 +86,8 @@ static u16 keys;
 // Sized for the widest frame. Rows are packed at gRenderWidth.
 static uint16_t sFrameImage[MAX_RENDER_WIDTH * DISPLAY_HEIGHT];
 static bool sHeadless = false;
+// Frames run so far in headless mode, for HNS_CLOCK.
+static unsigned long sHeadlessFrame;
 
 // Widescreen: HNS_WIDESCREEN=1 renders 288x160 instead of 240x160. See
 // include/platform.h. Off by default. Screenshots are saved at the size
@@ -123,6 +125,13 @@ void Platform_SetWidescreen(bool32 enabled)
 //   HNS_TEST_BATTLE=N       give a Cyndaquil and start a wild battle on frame N
 //   HNS_WARP=N:G:M:X:Y      on frame N, warp to map group G, map M, position X,Y
 //   HNS_WIDESCREEN=1        render 288x160 (also applies with a display)
+//   HNS_CLOCK=EPOCH         start the clock at that Unix time and advance it one second
+//                           every 60 frames, so two runs see the same time of day and
+//                           RNG seed and their shots can be compared byte for byte
+//   HNS_LAYER_DEBUG=1       tint each pixel by the layer that drew it (BG0 red, BG1
+//                           green, BG2 blue, BG3 yellow, sprites magenta, backdrop grey)
+//   HNS_LAYER_HIDE=MASK     hide layers: bits 0-3 are BG0-BG3, bit 4 is sprites (0x17
+//                           leaves BG3 alone). Both are in src/platform/gba_easy_draw.c
 // Use with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy.
 static u16 HeadlessKeyFromName(const char *name, size_t len)
 {
@@ -359,6 +368,7 @@ static int RunHeadless(unsigned long frameCount)
         warpFrame = 0;
     for (frame = 1; frame <= frameCount; frame++)
     {
+        sHeadlessFrame = frame;
         keys = HeadlessKeysForFrame(script, frame);
         // HNS_WARP gets a test to a map that scripted input cannot reach.
         // The player must be standing in the overworld.
@@ -1042,8 +1052,19 @@ void Platform_SetStatus(struct SiiRtcInfo *rtc)
 
 static void UpdateInternalClock(void)
 {
+    const char *fixedClock = getenv("HNS_CLOCK");
     time_t rawTime = time(NULL);
-    struct tm *time = localtime(&rawTime);
+    struct tm *time;
+
+    if (fixedClock != NULL)
+    {
+        rawTime = (time_t)strtoll(fixedClock, NULL, 10) + sHeadlessFrame / 60;
+        time = gmtime(&rawTime);
+    }
+    else
+    {
+        time = localtime(&rawTime);
+    }
 
     internalClock.year = BinToBcd(time->tm_year - 100);
     internalClock.month = BinToBcd(time->tm_mon + 1);
