@@ -576,9 +576,24 @@ bool8 LoadTrainerObjectScript(void)
     return TRUE;
 }
 
+#ifdef PORTABLE
+// clang has no __builtin_setjmp on AArch64. _setjmp/_longjmp work everywhere
+// natively and, unlike setjmp, do not save the signal mask with a syscall.
+#include <setjmp.h>
+#define SCRIPT_SETJMP(buf) _setjmp(buf)
+#define SCRIPT_LONGJMP(buf) _longjmp(buf, 1)
+#else
+#define SCRIPT_SETJMP(buf) __builtin_setjmp(buf)
+#define SCRIPT_LONGJMP(buf) __builtin_longjmp(buf, 1)
+#endif
+
 struct ScriptEffectContext {
     u32 breakOn;
+#ifdef PORTABLE
+    jmp_buf breakTo;
+#else
     intptr_t breakTo[5];
+#endif
     const u8 *nextCmd;
 };
 
@@ -595,7 +610,7 @@ static bool32 Script_IsEffectInstrumentedCommand(ScrCmdFunc func)
  * See https://gcc.gnu.org/onlinedocs/gcc/Nonlocal-Gotos.html */
 static bool32 RunScriptImmediatelyUntilEffect_InternalLoop(struct ScriptContext *ctx)
 {
-    if (__builtin_setjmp(gScriptEffectContext->breakTo) == 0)
+    if (SCRIPT_SETJMP(gScriptEffectContext->breakTo) == 0)
     {
         while (TRUE)
         {
@@ -634,7 +649,7 @@ static bool32 RunScriptImmediatelyUntilEffect_InternalLoop(struct ScriptContext 
 
 void Script_GotoBreak_Internal(void)
 {
-    __builtin_longjmp(gScriptEffectContext->breakTo, 1);
+    SCRIPT_LONGJMP(gScriptEffectContext->breakTo);
 }
 
 bool32 RunScriptImmediatelyUntilEffect_Internal(u32 effects, const u8 *ptr, struct ScriptContext *ctx)
@@ -671,7 +686,7 @@ bool32 Script_HasNoEffect(const u8 *ptr)
 void Script_RequestEffects_Internal(u32 effects)
 {
     if (gScriptEffectContext->breakOn & effects)
-        __builtin_longjmp(gScriptEffectContext->breakTo, 1);
+        SCRIPT_LONGJMP(gScriptEffectContext->breakTo);
 }
 
 void Script_RequestWriteVar_Internal(u32 varId)
