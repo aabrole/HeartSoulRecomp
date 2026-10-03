@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Resolves relocations against absolute symbols in a 32-bit ARM ELF object.
+"""Resolves relocations against absolute symbols in an ARM ELF object.
 
 The game's data refers to constants defined in other assembly files (special
 ids, item ids, message ids). After a partial link those are relocations of
 8, 16 or 32 bits against absolute symbols. The GNU linker applies them, but
-the Android linker (lld) rejects the 8 and 16-bit kinds. Their values are
-already known, so this writes them into the data and turns each relocation
-into R_ARM_NONE.
+the Android linker (lld) rejects them: on 32-bit ARM it has no 8 and 16-bit
+kinds, and on AArch64 it refuses narrow relocations in a shared library
+because it treats the symbols as local addresses. Their values are already
+known, so this writes them into the data and turns each relocation into
+R_ARM_NONE or R_AARCH64_NONE.
+
+Handles 32-bit ARM (REL) and AArch64 (RELA) objects.
 
 Usage: resolve-abs-relocs.py IN.o OUT.o
 """
@@ -19,9 +23,57 @@ SHT_REL = 9
 SIZES = {R_ARM_ABS32: (4, '<I'), R_ARM_ABS16: (2, '<H'), R_ARM_ABS8: (1, '<B')}
 
 
+R_AARCH64_NONE, R_AARCH64_ABS32, R_AARCH64_ABS16 = 0, 258, 259
+SHT_RELA = 4
+SIZES64 = {R_AARCH64_ABS32: (4, '<I'), R_AARCH64_ABS16: (2, '<H')}
+
+
+def main64(data, dst):
+    shoff, = struct.unpack_from('<Q', data, 0x28)
+    shentsize, shnum = struct.unpack_from('<HH', data, 0x3A)
+    # name, type, flags, addr, offset, size, link, info, addralign, entsize
+    sections = [struct.unpack_from('<IIQQQQIIQQ', data, shoff + i * shentsize) for i in range(shnum)]
+
+    resolved = {}
+    unresolved = {}
+    for name, stype, flags, addr, offset, size, link, info, align, entsize in sections:
+        if stype != SHT_RELA:
+            continue
+        symtab = sections[link]
+        target = sections[info]
+        for r in range(offset, offset + size, 24):
+            r_offset, r_info, r_addend = struct.unpack_from('<QQq', data, r)
+            rtype, symidx = r_info & 0xFFFFFFFF, r_info >> 32
+            if rtype not in SIZES64:
+                continue
+            st_name, st_info, st_other, st_shndx, st_value, st_size = struct.unpack_from(
+                '<IBBHQQ', data, symtab[4] + symidx * 24)
+            width, fmt = SIZES64[rtype]
+            if st_shndx != SHN_ABS and symidx != 0:
+                # An address in fewer than 8 bytes: a pointer the data did not
+                # write with ptrvalue.
+                unresolved[rtype] = unresolved.get(rtype, 0) + 1
+                continue
+            where = target[4] + r_offset
+            value = (st_value + r_addend) & ((1 << (8 * width)) - 1)
+            struct.pack_into(fmt, data, where, value)
+            struct.pack_into('<QQq', data, r, r_offset, R_AARCH64_NONE, 0)
+            resolved[rtype] = resolved.get(rtype, 0) + 1
+
+    open(dst, 'wb').write(data)
+    print('resolved against absolute symbols:', {k: v for k, v in sorted(resolved.items())})
+    if unresolved:
+        print('left alone, narrow relocation against a non-absolute symbol:', unresolved)
+        return 1
+    return 0
+
+
 def main(src, dst):
     data = bytearray(open(src, 'rb').read())
-    assert data[:4] == b'\x7fELF' and data[4] == 1 and data[5] == 1, 'need 32-bit little-endian ELF'
+    assert data[:4] == b'\x7fELF' and data[5] == 1, 'need little-endian ELF'
+    if data[4] == 2:
+        return main64(data, dst)
+    assert data[4] == 1, 'need a 32 or 64-bit ELF'
     shoff, = struct.unpack_from('<I', data, 0x20)
     shentsize, shnum = struct.unpack_from('<HH', data, 0x2E)
     sections = [struct.unpack_from('<IIIIIIIIII', data, shoff + i * shentsize) for i in range(shnum)]

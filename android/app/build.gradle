@@ -28,9 +28,10 @@ android {
         versionName '0.1.1'
 
         ndk {
-            // 32-bit on purpose: pointers match the GBA's, so the game's data
-            // and structs need no 64-bit conversion.
-            abiFilters 'armeabi-v7a'
+            // Both: devices without 32-bit support (such as the Anbernic
+            // RG DS) need arm64-v8a, and Android picks the 64-bit library
+            // where both run. Saves are interchangeable between the two.
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
 
         externalNativeBuild {
@@ -79,10 +80,17 @@ android {
     sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/fontAssets'))
 }
 
-tasks.register('copyAsanRuntime', Copy) {
+tasks.register('copyAsanRuntime') {
     // Resolved when the task runs, once the NDK location is known.
-    from { fileTree(android.ndkDirectory).matching { include '**/libclang_rt.asan-arm-android.so' }.files }
-    into layout.buildDirectory.dir('generated/asanLibs/armeabi-v7a')
+    def outDir = layout.buildDirectory.dir('generated/asanLibs')
+    doLast {
+        [['armeabi-v7a', 'arm'], ['arm64-v8a', 'aarch64']].each { abi, arch ->
+            project.copy {
+                from fileTree(android.ndkDirectory).matching { include "**/libclang_rt.asan-${arch}-android.so" }.files
+                into outDir.get().dir(abi)
+            }
+        }
+    }
 }
 
 

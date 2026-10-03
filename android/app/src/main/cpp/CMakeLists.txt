@@ -7,9 +7,21 @@ project(heartsoul_android C)
 # asset tools, so it has to be run once before the first Gradle build and
 # again whenever data or assets change.
 set(ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../..")
-set(GAME_DATA_OBJECT "${ROOT}/build/android/game_data.o")
+# Gradle configures this once per ABI. Each ABI links the data assembled for
+# its pointer size: 4-byte pointers for armeabi-v7a, 8-byte (VER_64BIT) for
+# arm64-v8a.
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(GAME_DATA_NAME game_data64.o)
+    set(ABI_DEFINES -DVER_64BIT)
+elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GAME_DATA_NAME game_data.o)
+    set(ABI_DEFINES)
+else()
+    message(FATAL_ERROR "Unsupported ABI ${ANDROID_ABI}")
+endif()
+set(GAME_DATA_OBJECT "${ROOT}/build/android/${GAME_DATA_NAME}")
 if(NOT EXISTS "${GAME_DATA_OBJECT}")
-    message(FATAL_ERROR "build/android/game_data.o is missing. Run port/android-data.sh first.")
+    message(FATAL_ERROR "build/android/${GAME_DATA_NAME} is missing. Run port/android-data.sh first.")
 endif()
 
 set(SDL_STATIC OFF CACHE BOOL "" FORCE)
@@ -30,7 +42,7 @@ add_custom_command(
 
 set(GAME_DEFINES
     -DMODERN=1 -DTESTING=0 -DPOKEMON_HNS -DNONMATCHING -DPORTABLE
-    -DPLATFORM_SDL2 -DRENDERER_EASY_DRAW -DUBFIX)
+    -DPLATFORM_SDL2 -DRENDERER_EASY_DRAW -DUBFIX ${ABI_DEFINES})
 string(REPLACE ";" " " GAME_DEFINES_STR "${GAME_DEFINES}")
 
 file(GLOB_RECURSE GAME_C CONFIGURE_DEPENDS "${ROOT}/src/*.c")
@@ -56,13 +68,16 @@ add_library(main SHARED ${GENERATED_C} "${GAME_DATA_OBJECT}")
 target_compile_options(main PRIVATE
     -std=gnu17
     -O2
-    # ARM mode keeps functions 4-byte aligned, which the script engine's
-    # effect tag (bit 1 of a function pointer) depends on.
-    -marm
     -fno-builtin
     -fno-strict-aliasing
     -fwrapv
     -Wno-everything)
+# The script engine's effect tag is bit 1 of a function pointer, so functions
+# must be 4-byte aligned. AArch64 code always is; 32-bit ARM needs ARM mode,
+# since Thumb functions are only 2-byte aligned.
+if(ANDROID_ABI STREQUAL "armeabi-v7a")
+    target_compile_options(main PRIVATE -marm)
+endif()
 # The game has thousands of global names. Binding them inside the library
 # keeps a same-named function in a system library from being used instead.
 target_link_options(main PRIVATE -Wl,-Bsymbolic)
