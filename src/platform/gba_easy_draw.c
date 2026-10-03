@@ -40,6 +40,7 @@ static int sLayerHide;
 // game-space column -gRenderMargin.
 int gRenderWidth = DISPLAY_WIDTH;
 int gRenderMargin = 0;
+bool8 gRenderPillarbox = FALSE;
 
 struct scanlineData {
     uint16_t layers[4][MAX_RENDER_WIDTH];
@@ -1005,7 +1006,9 @@ void DrawFrame(uint16_t *pixels)
 {
     int i;
     int j;
+    bool pillarbox = gRenderPillarbox;
 
+    gRenderPillarbox = FALSE;
     if (sLayerDebug < 0)
     {
         const char *hide = getenv("HNS_LAYER_HIDE");
@@ -1043,7 +1046,7 @@ void DrawFrame(uint16_t *pixels)
         }
 
         memsetu16(&pixels[i * gRenderWidth], backdropColor, gRenderWidth);
-        if (!DrawScanline(&pixels[i * gRenderWidth], i) && gRenderMargin != 0)
+        if ((!DrawScanline(&pixels[i * gRenderWidth], i) || pillarbox) && gRenderMargin != 0)
         {
             memsetu16(&pixels[i * gRenderWidth], 0, gRenderMargin);
             memsetu16(&pixels[i * gRenderWidth + gRenderMargin + DISPLAY_WIDTH], 0, gRenderMargin);

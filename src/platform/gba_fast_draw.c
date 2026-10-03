@@ -7,6 +7,7 @@
 // This renderer has no widescreen support and always draws 240 columns.
 int gRenderWidth = DISPLAY_WIDTH;
 int gRenderMargin = 0;
+bool8 gRenderPillarbox = FALSE;
 
 #define mosaicBGEffectX (REG_MOSAIC & 0xF)
 #define mosaicBGEffectY ((REG_MOSAIC >> 4) & 0xF)

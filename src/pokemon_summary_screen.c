@@ -53,6 +53,9 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 #include "nuzlocke.h"
+#ifdef PORTABLE
+#include "platform.h"
+#endif
 
 // Screen titles (upper left)
 #define PSS_LABEL_WINDOW_POKEMON_INFO_TITLE 0
@@ -1380,6 +1383,11 @@ void ShowSelectMovePokemonSummaryScreen(struct Pokemon *mons, u8 monIndex, void 
 
 static void MainCB2(void)
 {
+#ifdef PORTABLE
+    // BG1-3 are 512px wide to slide between pages, so in widescreen the
+    // margins would show the edges of the other pages.
+    gRenderPillarbox = TRUE;
+#endif
     RunTasks();
     AnimateSprites();
     BuildOamBuffer();

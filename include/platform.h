@@ -23,6 +23,14 @@
 extern int gRenderWidth;
 extern int gRenderMargin;
 
+// A screen whose BG maps are 512px wide only so that it can slide between
+// pages (the Pokémon summary) has nothing to show in the margins, but they
+// would show the edges of its other pages. Setting this to TRUE before a
+// frame is drawn blanks the margins of that frame; the renderer clears it
+// again, so a screen sets it on every frame from its main callback and it
+// stops when the screen does.
+extern bool8 gRenderPillarbox;
+
 // Turns the widened frame on or off. Takes effect on the next frame; the
 // overworld picks up the wide map layers the next time it sets up its BGs.
 void Platform_SetWidescreen(bool32 enabled);
