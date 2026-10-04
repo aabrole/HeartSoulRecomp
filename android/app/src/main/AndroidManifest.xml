@@ -18,11 +18,12 @@
 
         <meta-data android:name="SDL_ENV.SDL_ACCELEROMETER_AS_JOYSTICK" android:value="0" />
 
+        <!-- The start screen. It hands over to the game and goes away. -->
         <activity
-            android:name=".HeartSoulActivity"
+            android:name=".StartActivity"
             android:exported="true"
-            android:alwaysRetainTaskState="true"
-            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:excludeFromRecents="true"
             android:screenOrientation="sensorLandscape"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation">
             <intent-filter>
@@ -30,5 +31,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Exported so shortcuts made for earlier versions still start the game. -->
+        <activity
+            android:name=".HeartSoulActivity"
+            android:exported="true"
+            android:alwaysRetainTaskState="true"
+            android:launchMode="singleInstance"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation" />
+
+        <!-- The companion screen on a second display that takes no Presentation. -->
+        <activity
+            android:name=".BottomScreenActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.heartsoul.recomp.bottom"
+            android:excludeFromRecents="true"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation" />
     </application>
 </manifest>

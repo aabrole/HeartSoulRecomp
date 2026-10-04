@@ -19,8 +19,9 @@ import java.util.Locale;
  *
  * Everything is drawn GBA style: text in the game's own fonts (GbaText),
  * flat colors, borders one scaled pixel thick. One number sets every size:
- * the pixel scale s, the largest whole scale at which a 300x250 pixel
- * design fits the view (4 on the Thor's 1240x1080 bottom screen). Margins,
+ * the pixel scale s, the largest whole scale at which a 300x240 pixel
+ * design fits the view (4 on the Thor's 1240x1080 bottom screen, 2 on the
+ * RG DS's 640x480; 250 high would leave the RG DS at 1, too small). Margins,
  * gaps, borders and text are whole multiples of s; panels share out what is
  * left of the view, so the layout fills any size. Each string is fitted to
  * the box it was given (see GbaText), so no text overlaps or leaves its box.
@@ -28,7 +29,7 @@ import java.util.Locale;
 final class BottomScreenView extends View {
     // Design size in GBA pixels that the scale is chosen from.
     private static final int DESIGN_WIDTH = 300;
-    private static final int DESIGN_HEIGHT = 250;
+    private static final int DESIGN_HEIGHT = 240;
 
     // Layout, in GBA pixels (multiplied by the scale s).
     private static final int MARGIN = 4;

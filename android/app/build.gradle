@@ -24,8 +24,8 @@ android {
         applicationId 'com.heartsoul.recomp'
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName '0.2.0'
+        versionCode 4
+        versionName '0.3.0'
 
         ndk {
             // Both: devices without 32-bit support (such as the Anbernic
