@@ -523,8 +523,12 @@ static bool winCheckHorizontalBounds(u16 left, u16 right, int xpos)
 {
     if (left > right)
         return (xpos >= (int)left || xpos < (int)right);
-    else
-        return (xpos >= winExtendLeft(left) && xpos < winExtendRight(right));
+    // An empty window stays empty. The cave flash sets WIN0H to 0..0 on the
+    // lines outside its circle; read as reaching the frame edge, it lit up
+    // the left margin of a dark cave.
+    if (left == right)
+        return false;
+    return (xpos >= winExtendLeft(left) && xpos < winExtendRight(right));
 }
 
 // The same for lines. WINxV can only name lines of the 160-line screen, so on
