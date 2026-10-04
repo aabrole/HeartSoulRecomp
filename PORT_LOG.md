@@ -13,6 +13,101 @@ Rules for this log:
 
 ---
 
+## 2026-10-04, session 6: start screen, zoomed out 4:3, RG DS bottom screen
+
+State at end of session: **0.3.0 built, not released.** Release APK
+`android/app/build/outputs/apk/release/app-release.apk` (sha256
+d1135a10...ea325) waits for the owner's play-test on the Thor. Everything
+below was checked on the arm64 Android 14 emulator (`hns64`, set to 640x480
+with a 640x480 overlay display to stand in for an RG DS) and headless. None
+of it has run on a Thor or an RG DS.
+
+### The RG DS report that started it
+
+A friend ran 0.2.0 on an RG DS: it runs, buttons map, fast forward works.
+Three problems: the bottom screen stayed on the launcher (Daijisho), the
+picture could not be changed from 240x160, and the bars above and below
+were white (photo in the owner's chat).
+
+### Done
+
+- **Start screen** (`StartActivity`, `StartScreenView`, `Settings`): the
+  launcher opens it before the game. Picture: original 240x160, widescreen
+  288x160, zoomed out 288x216. Scaling: fit, pixel perfect (integer),
+  stretch. Bottom screen on or off. A preview box and a line of numbers show
+  how the picture sits on this screen ("288x216 ON 640x480, AT 2.2x").
+  Drawn in the game fonts, d-pad / A / START / touch; the cursor starts on
+  START GAME. Choices persist (SharedPreferences "settings") and reach the
+  game as `HNS_WIDESCREEN`, `HNS_TALL`, `HNS_SCALE`, set with `Os.setenv` in
+  `HeartSoulActivity.onCreate` before SDL starts. Defaults: widescreen on a
+  16:10 or wider screen, zoomed out on anything squarer. If the game is
+  already running, the start screen forwards straight to it.
+- **Black bars**: the renderer cleared to white once and never again. Now
+  black, cleared every frame (`src/platform/sdl2.c`).
+- **Scale modes**: `HNS_SCALE=fit|integer|stretch` (`ApplyScaleMode`).
+  Verified on the emulator: integer gives 480x320 at 2x on 640x480, stretch
+  fills 640 columns.
+- **Zoomed out / tall screen** (agent, branch `port-tall`, merged):
+  `HNS_TALL=1` with widescreen renders 288x216, 28 more lines above and
+  below. Only the overworld (`CB2_Overworld` sets `gRenderMarginYLive` each
+  frame) draws there; every other screen gets black bars. HBlank DMA and
+  interrupts still run once per real line. The field camera ring already
+  keeps the 16 metatile rows the tall view needs once the default camera pan
+  of 32 is counted; `sMapViewTopRow` in `src/field_camera.c` tracks which way
+  the shared row is used. Objects spawn 2 metatiles further out vertically;
+  `IsTallSpriteOffscreen` widens the sprite culls. Evidence (agent's
+  worktree, gitignored): `~/HeartSoulRecomp-tall/port/out/tall-evidence/`.
+  Tall off is byte-identical to before (5850 shots, 32 and 64-bit); margin
+  rows checked against the centre of other frames, 0 mismatches over about
+  92,000 rows including map connection crossings.
+- **Dark cave margins**: an empty window (WIN0H 0..0, which the cave flash
+  sets outside its circle) was stretched into the left margin and lit it.
+  Fixed in `winCheckHorizontalBounds`. Affected widescreen on the Thor too.
+- **Bottom screen on displays without FLAG_PRESENTATION**: the lookup asked
+  only for presentation displays, the likely reason the RG DS kept its
+  launcher (guess: its second panel is an ordinary display). `SecondScreen`
+  now takes any other public display and logs every display once
+  (`HeartSoul: displays (game on N): [...]`). Where the Presentation is
+  refused, `BottomScreenActivity` is launched onto that display over its
+  launcher, window `FLAG_NOT_FOCUSABLE`. Launching it moves key focus to its
+  display; `moveTaskToFront` does not bring it back (the game is already the
+  front task of its own display), re-starting `HeartSoulActivity` with
+  `REORDER_TO_FRONT` does, retried at 0.3/0.8/1.5/3 s while the game lacks
+  focus. Verified on the emulator with the debug flag file
+  `files/force_bottom_activity`: focus returns to display 0, a tap on the
+  bottom screen does not take it, a key press reaches the game.
+- **Bottom screen size**: design height 240 instead of 250, so 640x480 draws
+  at 2x (was 1x, tiny). Thor stays at 4x. Checked with the battle and
+  overworld preview JSONs at 640x480.
+- Version 0.3.0 (versionCode 4).
+
+### Known issues
+
+- Tall screen, from the agent's report: the top margin can show 64px-tall
+  objects (SS Anne, cable car) as a strip at once; weather sprites do not
+  cover the margins; scripted camera pans larger than about 12px may show a
+  stale row at a margin edge; the saved map view covers rows 0..13 only, so
+  a script-changed tile in the bottom 4 lines may revert after a menu. Not
+  seen in tests; not tested either.
+- Tall costs about 25% more render time headless. Not measured on an RG DS.
+- The bottom screen activity path has run only on the emulator. If the RG DS
+  still shows its launcher, its logcat line `HeartSoul: displays` says why.
+- adb `input keyevent` presses down and up within one frame, which the game
+  misses; use `--longpress` when testing on the emulator.
+- The debug APK grows on incremental builds (packaging leaves gaps); the
+  release APK is about 95 MB.
+
+### Next
+
+1. Owner plays the 0.3.0 release APK on the Thor: start screen with the
+   pad, widescreen as before, the bottom screen still a Presentation there,
+   then zoomed out and pixel perfect for a look.
+2. Send it to the RG DS friend; ask for the start screen, zoomed out, the
+   bottom screen, and `adb logcat -s HeartSoul` if the bottom screen fails.
+3. Publish 0.3.0 once the owner says so.
+
+---
+
 ## 2026-10-03, session 5: 64-bit (arm64-v8a), v0.1.1 icon, v0.2.0
 
 State at end of session: **v0.2.0 published** (pre-release) with both
