@@ -6,25 +6,27 @@ Pokémon Heart & Soul running natively on Android, built for dual-screen handhel
 
 This is a fan project. It is not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the Heart & Soul team.
 
-**Status: test build 0.2.0.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading. Expect bugs.
+**Status: test build 0.3.0.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading, and 0.2.0 has run on an Anbernic RG DS. Expect bugs.
 
 ## Download and install
 
-**[Download HeartSoulRecomp-0.2.0.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.2.0/HeartSoulRecomp-0.2.0.apk)** (95 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
+**[Download HeartSoulRecomp-0.3.0.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.3.0/HeartSoulRecomp-0.3.0.apk)** (95 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
 
 1. Download the APK on your device, or copy it over from a computer.
 2. Open it and allow installing from unknown sources when Android asks.
 3. Launch **Heart & Soul**.
 
-**Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save.
+**Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save. The title screen shows which version you are running, after Heart & Soul's own: `v2.0.6 RECOMP 0.3.0`.
 
 Requirements: Android 8 or newer on an ARM device. The APK contains both a 64-bit (`arm64-v8a`) and a 32-bit (`armeabi-v7a`) build, and Android picks the right one, so it also installs on 64-bit-only systems such as some custom handheld firmware.
 
 ## Features
 
 - **Native speed.** The game runs as Android code, not inside an emulator.
-- **Widescreen.** On 16:9 screens the overworld and battles fill the whole width, showing more of the map. Screens narrower than 16:10, such as the Anbernic RG DS's 4:3 panels, get the original GBA picture.
-- **Bottom screen.** On a device with a second screen, it shows your party, money, badges and play time, and in battle has touch buttons for moves, Bag, Pokémon and Run, drawn in the game's own font.
+- **Start screen.** Before the game starts, choose the picture, the scaling and whether to use the bottom screen. A preview shows how the picture will sit on your screen. Press A to play with your last choices.
+- **Widescreen and zoomed out.** Widescreen (288×160) shows more of the map to the left and right. Zoomed out (288×216, 4:3) also adds rows above and below, so a 4:3 screen like the Anbernic RG DS's is filled with more of the map instead of black bars. Original (240×160) is the GBA picture. Widescreen is the default on 16:9 screens, zoomed out on 4:3 screens.
+- **Scaling.** Fit (as big as fits), pixel perfect (whole-number zoom, every pixel the same size) or stretch (fills the screen, changes the shape).
+- **Bottom screen.** On a device with a second screen, it shows your party, money, badges and play time, and in battle has touch buttons for moves, Bag, Pokémon and Run, drawn in the game's own font. On handhelds whose second screen runs its own launcher, such as the RG DS, it opens over that launcher and the controller stays on the game.
 - **Controller support.** Built-in controls and gamepads work. The button labelled A is A. Hold the right trigger to fast-forward.
 
 ## Saves
@@ -35,8 +37,10 @@ Your save is `Android/data/com.heartsoul.recomp/files/pokeemerald.sav` on the de
 
 - Only the start of the game has been tested. Other areas may crash.
 - Very occasionally Android has closed the app while drawing the screen. Save often.
-- On the RG DS the bottom screen only appears if its system offers the second screen to apps the way the Thor does. Otherwise the game runs on one screen.
-- A few screens (title, menus, bag) stay 4:3 with black bars in widescreen, as designed.
+- The zoomed out picture and the new bottom screen support have not been tested on an RG DS itself yet. If the bottom screen does not appear there, please report it with the output of `adb logcat -s HeartSoul`.
+- In widescreen and zoomed out, a few screens (title, menus, bag, party) keep their GBA size with black bars around them, and in zoomed out battles have bars above and below, as designed.
+- Zoomed out: weather such as rain does not reach the extra rows, and very tall objects can appear at the top edge all at once.
+- Start screen choices apply when the game starts. To change them mid-session, close the app from recent apps and open it again.
 - Game launchers such as Cocoon Shell keep their own artwork for each game and may keep showing an old or default icon after an update. Set it in the launcher (in Cocoon: Edit Game Artwork, then Upload Icon) using [`port/icon/icon-512.png`](port/icon/icon-512.png).
 
 Report problems on the [Issues](../../issues) page with your device model and what you were doing.
