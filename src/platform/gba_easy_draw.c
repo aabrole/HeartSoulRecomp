@@ -12,9 +12,20 @@ extern long strtol(const char *str, char **end, int base);
 #define mosaicSpriteEffectX ((REG_MOSAIC >> 8) & 0xF)
 #define mosaicSpriteEffectY ((REG_MOSAIC >> 12) & 0xF)
 #define applyBGHorizontalMosaicEffect(x) (x - (x % (mosaicBGEffectX+1)))
-#define applyBGVerticalMosaicEffect(y) (y - (y % (mosaicBGEffectY+1)))
+#define applyBGVerticalMosaicEffect(y) mosaicBlockStart(y, mosaicBGEffectY + 1)
 #define applySpriteHorizontalMosaicEffect(x) (x - (x % (mosaicSpriteEffectX+1)))
-#define applySpriteVerticalMosaicEffect(y) (y - (y % (mosaicSpriteEffectY+1)))
+#define applySpriteVerticalMosaicEffect(y) mosaicBlockStart(y, mosaicSpriteEffectY + 1)
+
+// Mosaic blocks are counted from line 0. The top margin of a tall frame has
+// negative line numbers, where C's % rounds towards zero and would merge the
+// lines either side of line 0 into one block, so round down instead. Lines 0
+// and up are unchanged.
+static inline int mosaicBlockStart(int line, int size)
+{
+    int rem = line % size;
+
+    return line - (rem < 0 ? rem + size : rem);
+}
 
 #define getAlphaBit(x) ((x >> 15) & 1)
 #define getRedChannel(x) ((x >>  0) & 0x1F)
@@ -41,6 +52,10 @@ static int sLayerHide;
 int gRenderWidth = DISPLAY_WIDTH;
 int gRenderMargin = 0;
 bool8 gRenderPillarbox = FALSE;
+// Rows are gRenderHeight; buffer row 0 holds game line -gRenderMarginY.
+int gRenderHeight = DISPLAY_HEIGHT;
+int gRenderMarginY = 0;
+bool8 gRenderMarginYLive = FALSE;
 
 struct scanlineData {
     uint16_t layers[4][MAX_RENDER_WIDTH];
@@ -512,8 +527,26 @@ static bool winCheckHorizontalBounds(u16 left, u16 right, int xpos)
         return (xpos >= winExtendLeft(left) && xpos < winExtendRight(right));
 }
 
+// The same for lines. WINxV can only name lines of the 160-line screen, so on
+// the margin lines of a tall frame a window that covers line 0 (its top is 0,
+// or it wraps round) reaches up to the top of the frame, and one that covers
+// line 159 (its bottom is 160 or more, or it wraps round) reaches down to the
+// bottom. A window whose edges are inside the screen keeps them.
+static bool winCheckVerticalBounds(u16 top, u16 bottom, int line)
+{
+    if (line < 0)
+        line = 0;
+    else if (line >= DISPLAY_HEIGHT)
+        line = DISPLAY_HEIGHT - 1;
+
+    if (top > bottom)
+        return (line >= top || line < bottom);
+    else
+        return (line >= top && line < bottom);
+}
+
 // Parts of this code heavily borrowed from NanoboyAdvance.
-static void DrawSprites(struct scanlineData* scanline, uint16_t vcount, bool windowsEnabled)
+static void DrawSprites(struct scanlineData* scanline, int vcount, bool windowsEnabled)
 {
     int i;
     unsigned int x;
@@ -584,8 +617,19 @@ static void DrawSprites(struct scanlineData* scanline, uint16_t vcount, bool win
         // -128..-1 (the widest sprite is 128 with double size).
         if (x >= 512 - 128)
             x -= 512;
-        if (y >= DISPLAY_HEIGHT)
+        // OAM y is 8 bits. On the 160 real lines, 160 and up is above the
+        // screen as before. On the margin lines of a tall frame, 160 up to
+        // the bottom of the frame is in the bottom margin instead, and only
+        // the values past that are above the screen.
+        if (vcount >= 0 && vcount < DISPLAY_HEIGHT)
+        {
+            if (y >= DISPLAY_HEIGHT)
+                y -= 256;
+        }
+        else if (y >= DISPLAY_HEIGHT + gRenderMarginY)
+        {
             y -= 256;
+        }
 
         if (isAffine)
         {
@@ -737,10 +781,20 @@ static void DrawSprites(struct scanlineData* scanline, uint16_t vcount, bool win
     }
 }
 
-// Returns TRUE if the margins of this scanline hold real picture, FALSE if
-// the caller should blank them.
-static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
+// A text BG whose map is 512px wide: the widened overworld's map layers.
+static bool isWideTextBg(uint16_t bgcnt)
 {
+    return (bgcnt >> 14) & 1;
+}
+
+// Returns TRUE if the margins of this scanline hold real picture, FALSE if
+// the caller should blank them. vcount is the game line, which is negative
+// or 160 and up on the margin lines of a tall frame. Those draw only the
+// 512px text BGs (the overworld map) and sprites: BG0's rows past the screen
+// hold nothing meant to be seen, and nothing else is drawn there.
+static bool DrawScanline(uint16_t *pixels, int vcount)
+{
+    bool marginLine = (vcount < 0 || vcount >= DISPLAY_HEIGHT);
     unsigned int mode = REG_DISPCNT & 3;
     unsigned char numOfBgs = (mode == 0 ? 4 : 3);
     int bgnum, prnum;
@@ -775,7 +829,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
         // All backgrounds are text mode
         for (bgnum = 3; bgnum >= 0; bgnum--)
         {
-            if (isbgEnabled(bgnum))
+            if (isbgEnabled(bgnum) && (!marginLine || isWideTextBg(scanline.bgcnts[bgnum])))
             {
                 uint16_t bghoffs = *(uint16_t *)(REG_ADDR_BG0HOFS + bgnum * 4);
                 uint16_t bgvoffs = *(uint16_t *)(REG_ADDR_BG0VOFS + bgnum * 4);
@@ -788,14 +842,14 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
     case 1:
         // BG2 is affine
         bgnum = 2;
-        if (isbgEnabled(bgnum))
+        if (isbgEnabled(bgnum) && !marginLine)
         {
             RenderRotScaleBGScanline(bgnum, scanline.bgcnts[bgnum], REG_BG2X, REG_BG2Y, vcount, scanline.layers[bgnum]);
         }
         // BG0 and BG1 are text mode
         for (bgnum = 1; bgnum >= 0; bgnum--)
         {
-            if (isbgEnabled(bgnum))
+            if (isbgEnabled(bgnum) && (!marginLine || isWideTextBg(scanline.bgcnts[bgnum])))
             {
                 uint16_t bghoffs = *(uint16_t *)(REG_ADDR_BG0HOFS + bgnum * 4);
                 uint16_t bgvoffs = *(uint16_t *)(REG_ADDR_BG0VOFS + bgnum * 4);
@@ -818,7 +872,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
     {
         for (bgnum = 0; bgnum < (mode == 0 ? 4 : 2); bgnum++)
         {
-            if (isbgEnabled(bgnum) && ((scanline.bgcnts[bgnum] >> 14) & 1))
+            if (isbgEnabled(bgnum) && isWideTextBg(scanline.bgcnts[bgnum]))
                 sMarginsLive = true;
         }
     }
@@ -840,13 +894,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
         WIN0left = (REG_WIN0H & 0xFF00) >> 8; //x1
         
         //figure out WIN Y wraparound and check bounds accordingly
-        if (WIN0top > WIN0bottom) {
-            if (vcount >= WIN0top || vcount < WIN0bottom)
-                WIN0enable = true;
-        } else {
-            if (vcount >= WIN0top && vcount < WIN0bottom)
-                WIN0enable = true;
-        }
+        WIN0enable = winCheckVerticalBounds(WIN0top, WIN0bottom, vcount);
         
         windowsEnabled = true;
     }
@@ -860,13 +908,7 @@ static bool DrawScanline(uint16_t *pixels, uint16_t vcount)
         WIN1right = (REG_WIN1H & 0xFF); //x2
         WIN1left = (REG_WIN1H & 0xFF00) >> 8; //x1
         
-        if (WIN1top > WIN1bottom) {
-            if (vcount >= WIN1top || vcount < WIN1bottom)
-                WIN1enable = true;
-        } else {
-            if (vcount >= WIN1top && vcount < WIN1bottom)
-                WIN1enable = true;
-        }
+        WIN1enable = winCheckVerticalBounds(WIN1top, WIN1bottom, vcount);
         
         windowsEnabled = true;
     }
@@ -1002,13 +1044,63 @@ static void TintByLayer(uint16_t *row)
     }
 }
 
+// Draws game line `line` into its row of the frame. On a tall frame the
+// margin lines are drawn only when the overworld asked for them (live) and,
+// like the side margins, only while a 512px BG is there to fill them. They
+// are black otherwise.
+static void DrawLine(uint16_t *pixels, int line, bool pillarbox, bool live)
+{
+    uint16_t *row = &pixels[(line + gRenderMarginY) * gRenderWidth];
+    bool marginLine = (line < 0 || line >= DISPLAY_HEIGHT);
+
+    if (marginLine && (!live || pillarbox))
+    {
+        memsetu16(row, 0, gRenderWidth);
+        return;
+    }
+
+    // Render the backdrop color before the each individual scanline.
+    // backdrop color brightness effects
+    unsigned int blendMode = (REG_BLDCNT >> 6) & 3;
+    uint16_t backdropColor = *(uint16_t *)PLTT;
+    if (REG_BLDCNT & BLDCNT_TGT1_BD)
+    {
+        switch (blendMode)
+        {
+        case 2:
+            backdropColor = alphaBrightnessIncrease(backdropColor);
+            break;
+        case 3:
+            backdropColor = alphaBrightnessDecrease(backdropColor);
+            break;
+        }
+    }
+
+    memsetu16(row, backdropColor, gRenderWidth);
+    bool marginsLive = DrawScanline(row, line);
+    if (marginLine && !marginsLive)
+    {
+        memsetu16(row, 0, gRenderWidth);
+        return;
+    }
+    if ((!marginsLive || pillarbox) && gRenderMargin != 0)
+    {
+        memsetu16(row, 0, gRenderMargin);
+        memsetu16(row + gRenderMargin + DISPLAY_WIDTH, 0, gRenderMargin);
+    }
+    if (sLayerDebug)
+        TintByLayer(row);
+}
+
 void DrawFrame(uint16_t *pixels)
 {
     int i;
     int j;
     bool pillarbox = gRenderPillarbox;
+    bool live = gRenderMarginYLive;
 
     gRenderPillarbox = FALSE;
+    gRenderMarginYLive = FALSE;
     if (sLayerDebug < 0)
     {
         const char *hide = getenv("HNS_LAYER_HIDE");
@@ -1028,32 +1120,22 @@ void DrawFrame(uint16_t *pixels)
                     gIntrTable[0]();
         }
 
-        // Render the backdrop color before the each individual scanline.
-        // backdrop color brightness effects
-        unsigned int blendMode = (REG_BLDCNT >> 6) & 3;
-        uint16_t backdropColor = *(uint16_t *)PLTT;
-        if (REG_BLDCNT & BLDCNT_TGT1_BD)
+        // The margin lines of a tall frame are not real lines: the game gets
+        // its interrupts and HBlank DMA once per line of the 160, so its
+        // per-line tables stay in step. The top margin is drawn with the
+        // registers of line 0, the bottom margin with those of line 159.
+        if (i == 0)
         {
-            switch (blendMode)
-            {
-            case 2:
-                backdropColor = alphaBrightnessIncrease(backdropColor);
-                break;
-            case 3:
-                backdropColor = alphaBrightnessDecrease(backdropColor);
-                break;
-            }
+            for (j = -gRenderMarginY; j < 0; j++)
+                DrawLine(pixels, j, pillarbox, live);
+        }
+        DrawLine(pixels, i, pillarbox, live);
+        if (i == DISPLAY_HEIGHT - 1)
+        {
+            for (j = DISPLAY_HEIGHT; j < DISPLAY_HEIGHT + gRenderMarginY; j++)
+                DrawLine(pixels, j, pillarbox, live);
         }
 
-        memsetu16(&pixels[i * gRenderWidth], backdropColor, gRenderWidth);
-        if ((!DrawScanline(&pixels[i * gRenderWidth], i) || pillarbox) && gRenderMargin != 0)
-        {
-            memsetu16(&pixels[i * gRenderWidth], 0, gRenderMargin);
-            memsetu16(&pixels[i * gRenderWidth + gRenderMargin + DISPLAY_WIDTH], 0, gRenderMargin);
-        }
-        if (sLayerDebug)
-            TintByLayer(&pixels[i * gRenderWidth]);
-        
         REG_DISPSTAT |= INTR_FLAG_HBLANK;
 
         RunDMAs(DMA_HBLANK);

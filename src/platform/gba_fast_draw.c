@@ -4,10 +4,13 @@
 #include "platform.h"
 #include "platform/dma.h"
 
-// This renderer has no widescreen support and always draws 240 columns.
+// This renderer has no widescreen or tall support and always draws 240x160.
 int gRenderWidth = DISPLAY_WIDTH;
 int gRenderMargin = 0;
 bool8 gRenderPillarbox = FALSE;
+int gRenderHeight = DISPLAY_HEIGHT;
+int gRenderMarginY = 0;
+bool8 gRenderMarginYLive = FALSE;
 
 #define mosaicBGEffectX (REG_MOSAIC & 0xF)
 #define mosaicBGEffectY ((REG_MOSAIC >> 4) & 0xF)
