@@ -83,8 +83,9 @@ static void CloseSaveFile(void);
 static void UpdateInternalClock(void);
 
 static u16 keys;
-// Sized for the widest frame. Rows are packed at gRenderWidth.
-static uint16_t sFrameImage[MAX_RENDER_WIDTH * DISPLAY_HEIGHT];
+// Sized for the largest frame. Rows are packed at gRenderWidth, and there
+// are gRenderHeight of them.
+static uint16_t sFrameImage[MAX_RENDER_WIDTH * MAX_RENDER_HEIGHT];
 static bool sHeadless = false;
 // Frames run so far in headless mode, for HNS_CLOCK.
 static unsigned long sHeadlessFrame;
@@ -114,7 +115,7 @@ static void ApplyScaleMode(void)
         SDL_RenderSetIntegerScale(sdlRenderer, SDL_FALSE);
         return;
     }
-    SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
+    SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, gRenderHeight);
     SDL_RenderSetIntegerScale(sdlRenderer, sScaleMode == SCALE_INTEGER ? SDL_TRUE : SDL_FALSE);
 }
 
@@ -143,7 +144,24 @@ void Platform_SetWidescreen(bool32 enabled)
     gRenderWidth = DISPLAY_WIDTH + 2 * gRenderMargin;
     ApplyScaleMode();
     if (sdlWindow != NULL)
-        SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale);
+        SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, gRenderHeight * videoScale);
+}
+
+// Tall screen: HNS_TALL=1 adds 28 lines above and below, so with widescreen
+// the frame is 288x216 (4:3). See include/platform.h. Meant to be used with
+// widescreen on; without it the extra lines stay black. Off by default.
+void Platform_SetTallScreen(bool32 enabled)
+{
+#ifdef RENDERER_EASY_DRAW
+    gRenderMarginY = enabled ? TALL_MARGIN : 0;
+#else
+    (void)enabled;
+    gRenderMarginY = 0;
+#endif
+    gRenderHeight = DISPLAY_HEIGHT + 2 * gRenderMarginY;
+    ApplyScaleMode();
+    if (sdlWindow != NULL)
+        SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, gRenderHeight * videoScale);
 }
 
 // Headless test mode, for running the game without a display or a person.
@@ -164,6 +182,8 @@ void Platform_SetWidescreen(bool32 enabled)
 //   HNS_TEST_BATTLE=N       give a Cyndaquil and start a wild battle on frame N
 //   HNS_WARP=N:G:M:X:Y      on frame N, warp to map group G, map M, position X,Y
 //   HNS_WIDESCREEN=1        render 288x160 (also applies with a display)
+//   HNS_TALL=1              add 28 lines above and below: 288x216 with widescreen. Meant
+//                           with HNS_WIDESCREEN=1; the overworld map fills the extra lines
 //   HNS_SCALE=MODE          fit (default), integer or stretch: how the frame fills
 //                           the window. On Android the start screen sets both.
 //   HNS_CLOCK=EPOCH         start the clock at that Unix time and advance it one second
@@ -258,7 +278,7 @@ static void HeadlessStartSongs(const char *list, unsigned long frame, bool32 gbs
 static void HeadlessSaveShot(unsigned long frame)
 {
     char path[64];
-    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(sFrameImage, gRenderWidth, DISPLAY_HEIGHT,
+    SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(sFrameImage, gRenderWidth, gRenderHeight,
                                                               16, gRenderWidth * sizeof(uint16_t), SDL_PIXELFORMAT_ABGR1555);
 
     if (surface == NULL)
@@ -505,6 +525,7 @@ int main(int argc, char **argv)
 {
     const char *headlessFrames = getenv("HNS_HEADLESS_FRAMES");
     const char *widescreen = getenv("HNS_WIDESCREEN");
+    const char *tall = getenv("HNS_TALL");
 
     // Open an output console on Windows
 #ifdef _WIN32
@@ -552,15 +573,20 @@ int main(int argc, char **argv)
         }
         if (widescreen != NULL && widescreen[0] != '\0')
             wide = strtoul(widescreen, NULL, 10) != 0;
-        SDL_Log("display %dx%d, widescreen %s, scale %s", mode.w, mode.h, wide ? "on" : "off",
+        SDL_Log("display %dx%d, widescreen %s, tall %s, scale %s", mode.w, mode.h, wide ? "on" : "off",
+                tall != NULL && strtoul(tall, NULL, 10) != 0 ? "on" : "off",
                 getenv("HNS_SCALE") != NULL ? getenv("HNS_SCALE") : "fit");
         Platform_SetWidescreen(wide);
+        // The start screen sets HNS_TALL too (4:3 screens with widescreen on).
+        if (tall != NULL && strtoul(tall, NULL, 10) != 0)
+            Platform_SetTallScreen(TRUE);
     }
 #else
     Platform_SetWidescreen(widescreen != NULL && strtoul(widescreen, NULL, 10) != 0);
+    Platform_SetTallScreen(tall != NULL && strtoul(tall, NULL, 10) != 0);
 #endif
 
-    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale,
+    sdlWindow = SDL_CreateWindow("pokeemerald", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, gRenderWidth * videoScale, gRenderHeight * videoScale,
 #ifdef __ANDROID__
                                  SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
 #else
@@ -586,12 +612,13 @@ int main(int argc, char **argv)
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     SetScaleMode(getenv("HNS_SCALE"));
 
-    // Created at the widest geometry. Only the leftmost gRenderWidth columns
-    // are uploaded and drawn, so widescreen can change without a new texture.
+    // Created at the largest geometry. Only the top-left gRenderWidth x
+    // gRenderHeight is uploaded and drawn, so widescreen and the tall screen
+    // can change without a new texture.
     sdlTexture = SDL_CreateTexture(sdlRenderer,
                                    SDL_PIXELFORMAT_ABGR1555,
                                    SDL_TEXTUREACCESS_STREAMING,
-                                   MAX_RENDER_WIDTH, DISPLAY_HEIGHT);
+                                   MAX_RENDER_WIDTH, MAX_RENDER_HEIGHT);
     if (sdlTexture == NULL)
     {
         DBGPRINTF("Texture could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -663,6 +690,9 @@ int main(int argc, char **argv)
             {
                 //run game logic, draw frame and process DMAs and vblank
                 ENTER_VBLANK(); //you must be in VBlank before running a game tick
+                // Only the step that is drawn may ask for live tall margins,
+                // not one before it that the overworld ran and nothing drew.
+                gRenderMarginYLive = FALSE;
                 MainLoop();
                 DualScreen_FrameHook();
                 if (!isGameStepDrawn)
@@ -697,7 +727,7 @@ int main(int argc, char **argv)
 
             if (videoScaleChanged)
             {
-                SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale);
+                SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, gRenderHeight * videoScale);
                 videoScaleChanged = false;
             }
         }
@@ -705,7 +735,7 @@ int main(int argc, char **argv)
         lastGameTime = curGameTime;
 
         {
-            SDL_Rect frameRect = {0, 0, gRenderWidth, DISPLAY_HEIGHT};
+            SDL_Rect frameRect = {0, 0, gRenderWidth, gRenderHeight};
 
             SDL_RenderClear(sdlRenderer);
             SDL_RenderCopy(sdlRenderer, sdlTexture, &frameRect, NULL);
@@ -1011,8 +1041,8 @@ void ProcessEvents(void)
                 videoScale = 0;
                 if (w / gRenderWidth > videoScale)
                     videoScale = w / gRenderWidth;
-                if (h / DISPLAY_HEIGHT > videoScale)
-                    videoScale = h / DISPLAY_HEIGHT;
+                if (h / gRenderHeight > videoScale)
+                    videoScale = h / gRenderHeight;
                 if (videoScale < 1)
                     videoScale = 1;
 
@@ -1092,11 +1122,11 @@ u16 Platform_GetKeyInput(void)
 
 void VDraw(SDL_Texture *texture)
 {
-    // DrawFrame packs its rows at gRenderWidth, so upload that part of the
-    // (wider) texture.
-    SDL_Rect frameRect = {0, 0, gRenderWidth, DISPLAY_HEIGHT};
+    // DrawFrame packs gRenderHeight rows at gRenderWidth, so upload that part
+    // of the (larger) texture.
+    SDL_Rect frameRect = {0, 0, gRenderWidth, gRenderHeight};
 
-    memset(sFrameImage, 0, gRenderWidth * DISPLAY_HEIGHT * sizeof(sFrameImage[0]));
+    memset(sFrameImage, 0, gRenderWidth * gRenderHeight * sizeof(sFrameImage[0]));
     DrawFrame(sFrameImage);
     SDL_UpdateTexture(texture, &frameRect, sFrameImage, gRenderWidth * sizeof (Uint16));
     REG_VCOUNT = 161; // prep for being in VBlank period

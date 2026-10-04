@@ -85,6 +85,9 @@
 #include "constants/vars_hns.h"
 #include "nuzlocke.h"
 #include "pokemon_storage_system.h"
+#ifdef PORTABLE
+#include "platform.h"
+#endif
 
 STATIC_ASSERT((B_FLAG_FOLLOWERS_DISABLED == 0 || OW_FOLLOWERS_ENABLED), FollowersFlagAssignedWithoutEnablingThem);
 
@@ -1962,6 +1965,14 @@ void CB2_Overworld(void)
     if (fading)
         SetVBlankCallback(NULL);
     OverworldBasic();
+#ifdef PORTABLE
+    // Tall screen: this frame may draw the map in the lines above and below
+    // the 160-line view, which only the 512px map layers have content for.
+    // Only this callback asks, so battle transitions (CB2_OverworldBasic) and
+    // every other screen get black bars there.
+    if (UseWideOverworldBg())
+        gRenderMarginYLive = TRUE;
+#endif
     if (fading)
     {
         SetFieldVBlankCallback();

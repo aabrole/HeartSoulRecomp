@@ -25,9 +25,13 @@
 // despawn further out still.
 #define WIDE_CULL_X   gRenderMargin
 #define WIDE_SPAWN_X  (gRenderMargin != 0 ? 2 : 0)
+// The tall screen does the same above and below the 160-line view, with
+// 28px. Its sprite culls are IsTallSpriteOffscreen.
+#define WIDE_SPAWN_Y  (gRenderMarginY != 0 ? 2 : 0)
 #else
 #define WIDE_CULL_X   0
 #define WIDE_SPAWN_X  0
+#define WIDE_SPAWN_Y  0
 #endif
 #include "follower_npc.h"
 #include "follower_helper.h"
@@ -2991,8 +2995,8 @@ void UpdateLightSprite(struct Sprite *sprite)
 {
     s16 left =   gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
     s16 right =  gSaveBlock1Ptr->pos.x + 17 + WIDE_SPAWN_X;
-    s16 top =    gSaveBlock1Ptr->pos.y;
-    s16 bottom = gSaveBlock1Ptr->pos.y + 15;
+    s16 top =    gSaveBlock1Ptr->pos.y - WIDE_SPAWN_Y;
+    s16 bottom = gSaveBlock1Ptr->pos.y + 15 + WIDE_SPAWN_Y;
     s16 x = sprite->sLightXPos;
     s16 y = sprite->sLightYPos;
     u16 sheetTileStart;
@@ -3130,8 +3134,8 @@ void TrySpawnLightSprites(s16 camX, s16 camY)
     u8 objectCount;
     s16 left = gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
     s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2 + WIDE_SPAWN_X;
-    s16 top = gSaveBlock1Ptr->pos.y;
-    s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2;
+    s16 top = gSaveBlock1Ptr->pos.y - WIDE_SPAWN_Y;
+    s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2 + WIDE_SPAWN_Y;
     if (gMapHeader.events == NULL)
         return;
 
@@ -3164,8 +3168,8 @@ void TrySpawnObjectEvents(s16 cameraX, s16 cameraY)
     {
         s16 left = gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
         s16 right = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2 + WIDE_SPAWN_X;
-        s16 top = gSaveBlock1Ptr->pos.y;
-        s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2;
+        s16 top = gSaveBlock1Ptr->pos.y - WIDE_SPAWN_Y;
+        s16 bottom = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H + 2 + WIDE_SPAWN_Y;
 
         if (CurrentBattlePyramidLocation() != PYRAMID_LOCATION_NONE)
             objectCount = GetNumBattlePyramidObjectEvents();
@@ -3220,8 +3224,8 @@ static void RemoveObjectEventIfOutsideView(struct ObjectEvent *objectEvent)
 {
     s16 left =   gSaveBlock1Ptr->pos.x - 2 - WIDE_SPAWN_X;
     s16 right =  gSaveBlock1Ptr->pos.x + 17 + WIDE_SPAWN_X;
-    s16 top =    gSaveBlock1Ptr->pos.y;
-    s16 bottom = gSaveBlock1Ptr->pos.y + 16;
+    s16 top =    gSaveBlock1Ptr->pos.y - WIDE_SPAWN_Y;
+    s16 bottom = gSaveBlock1Ptr->pos.y + 16 + WIDE_SPAWN_Y;
 
     if (objectEvent->currentCoords.x >= left && objectEvent->currentCoords.x <= right
      && objectEvent->currentCoords.y >= top && objectEvent->currentCoords.y <= bottom)
@@ -10016,6 +10020,23 @@ static void UpdateObjectEventVisibility(struct ObjectEvent *objectEvent, struct 
     UpdateObjectEventSpriteVisibility(objectEvent, sprite);
 }
 
+#ifdef PORTABLE
+// Tall screen: is a sprite whose top line is `top` (and whose bottom, as the
+// caller measures it, is `bottom`) outside the frame? OAM y is 8 bits, and
+// the renderer draws 160 up to the bottom of the frame in the bottom margin,
+// so only the 256 lines from there up are told apart. A sprite is hidden as
+// soon as its top is past the bottom of the frame (retail's 16px of slack
+// would wrap it round to the top), 16px past the top of the frame as in
+// retail, and before its top climbs so high that it would wrap round to the
+// bottom.
+static bool32 IsTallSpriteOffscreen(s32 top, s32 bottom)
+{
+    return top >= DISPLAY_HEIGHT + gRenderMarginY
+        || bottom < -16 - gRenderMarginY
+        || top < DISPLAY_HEIGHT + gRenderMarginY - 256;
+}
+#endif
+
 static void UpdateObjectEventOffscreen(struct ObjectEvent *objectEvent, struct Sprite *sprite)
 {
     s32 x, y;
@@ -10045,6 +10066,14 @@ static void UpdateObjectEventOffscreen(struct ObjectEvent *objectEvent, struct S
     if (x >= DISPLAY_WIDTH + 16 + WIDE_CULL_X || x2 < minX - WIDE_CULL_X)
         objectEvent->offScreen = TRUE;
 
+#ifdef PORTABLE
+    if (gRenderMarginY != 0)
+    {
+        if (IsTallSpriteOffscreen(y, y2))
+            objectEvent->offScreen = TRUE;
+    }
+    else
+#endif
     if (y >= DISPLAY_HEIGHT + 16 || y2 < -16)
         objectEvent->offScreen = TRUE;
 }
@@ -11403,6 +11432,14 @@ void UpdateObjectEventSpriteInvisibility(struct Sprite *sprite, bool8 invisible)
 
     if ((s16)x >= DISPLAY_WIDTH + 16 + WIDE_CULL_X || x2 < -16 - WIDE_CULL_X)
         sprite->invisible = TRUE;
+#ifdef PORTABLE
+    if (gRenderMarginY != 0)
+    {
+        if (IsTallSpriteOffscreen((s16)y, y2))
+            sprite->invisible = TRUE;
+    }
+    else
+#endif
     if ((s16)y >= DISPLAY_HEIGHT + 16 || y2 < -16)
         sprite->invisible = TRUE;
 }
