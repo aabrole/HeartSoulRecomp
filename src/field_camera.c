@@ -15,12 +15,31 @@
 //EWRAM_DATA bool8 gUnusedBikeCameraAheadPanback = FALSE;   //  Old EWRAM variable that was never set to anything other than false
 
 #ifdef PORTABLE
+#include "platform.h"
+
 // Widescreen: the map layers can be 64 tiles wide, with extra metatiles drawn
 // either side of the retail window. See include/fieldmap.h. All of these are
 // the retail values while widescreen is off.
 #define BG_TILES_X          GetBgMapTilesX()
 #define MAP_VIEW_ORIGIN_X   (gSaveBlock1Ptr->pos.x - (int)GetMapFillExtraX())
 #define MAP_VIEW_SCROLL_X   (GetMapFillExtraX() * 16)
+
+// Tall screen (gRenderMarginY in include/platform.h). The map layers are a
+// ring of 16 metatile rows, k = 0..15 below gSaveBlock1Ptr->pos.y, starting
+// at tile row yTileOffset. With the normal camera pan of 32 the 160-line view
+// shows k = 2..12 (1..13 while moving), so retail never shows k = 15, and the
+// ring row it is drawn in also serves as k = -1. The tall view shows k = 0..14
+// standing still, -1..14 while moving south and 0..15 while moving north:
+// the whole ring. The retail slice redraws already keep exactly that, since
+// after a step south the ring holds k = -1..14 (the new k = 14 is drawn, k = -1
+// is the old k = 0) and after a step north k = 0..15. sMapViewTopRow says
+// which of the two the ring holds, and every other redraw (whole view,
+// east/west columns, single metatiles) puts k = -1 or k = 15 in the shared
+// row to match. With tall off it is always 0 and nothing changes.
+static s8 sMapViewTopRow;
+#define MAP_VIEW_TOP_ROW    (gRenderMarginY != 0 ? sMapViewTopRow : 0)
+#define MAP_VIEW_ORIGIN_Y   (gSaveBlock1Ptr->pos.y + MAP_VIEW_TOP_ROW)
+#define MAP_VIEW_RING_TOP(cameraOffset) (((cameraOffset)->yTileOffset + 2 * MAP_VIEW_TOP_ROW) & 31)
 
 // A 64x32 BG map is two 32x32 screenblocks side by side, not one 64-wide
 // grid: columns 32-63 start 0x400 entries after the first block, and rows
@@ -34,6 +53,8 @@ static u32 BgTilemapIndex(u32 x, u32 y)
 #define MAP_VIEW_ORIGIN_X   gSaveBlock1Ptr->pos.x
 #define MAP_VIEW_SCROLL_X   0
 #define BgTilemapIndex(x, y) ((y) * 32 + (x))
+#define MAP_VIEW_ORIGIN_Y   gSaveBlock1Ptr->pos.y
+#define MAP_VIEW_RING_TOP(cameraOffset) ((cameraOffset)->yTileOffset)
 #endif
 
 struct FieldCameraOffset
@@ -76,6 +97,9 @@ static void ResetCameraOffset(struct FieldCameraOffset *cameraOffset)
     cameraOffset->xPixelOffset = 0;
     cameraOffset->yPixelOffset = 0;
     cameraOffset->copyBGToVRAM = TRUE;
+#ifdef PORTABLE
+    sMapViewTopRow = 0;
+#endif
 }
 
 static void AddCameraTileOffset(struct FieldCameraOffset *cameraOffset, u32 xOffset, u32 yOffset)
@@ -137,9 +161,10 @@ static void DrawWholeMapViewInternal(int x, int y, const struct MapLayout *mapLa
     u32 tilesX = BG_TILES_X;
 
     x += MAP_VIEW_ORIGIN_X - gSaveBlock1Ptr->pos.x;
+    y += MAP_VIEW_ORIGIN_Y - gSaveBlock1Ptr->pos.y;
     for (i = 0; i < 32; i += 2)
     {
-        temp = sFieldCameraOffset.yTileOffset + i;
+        temp = MAP_VIEW_RING_TOP(&sFieldCameraOffset) + i;
         if (temp >= 32)
             temp -= 32;
         r6 = temp;
@@ -212,10 +237,10 @@ static void RedrawMapSliceEast(struct FieldCameraOffset *cameraOffset, const str
 
     for (i = 0; i < 32; i += 2)
     {
-        temp = cameraOffset->yTileOffset + i;
+        temp = MAP_VIEW_RING_TOP(cameraOffset) + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, BgTilemapIndex(r6, temp), MAP_VIEW_ORIGIN_X, gSaveBlock1Ptr->pos.y + i / 2);
+        DrawMetatileAt(mapLayout, BgTilemapIndex(r6, temp), MAP_VIEW_ORIGIN_X, MAP_VIEW_ORIGIN_Y + i / 2);
     }
 }
 
@@ -233,10 +258,10 @@ static void RedrawMapSliceWest(struct FieldCameraOffset *cameraOffset, const str
         r5 -= tilesX;
     for (i = 0; i < 32; i += 2)
     {
-        temp = cameraOffset->yTileOffset + i;
+        temp = MAP_VIEW_RING_TOP(cameraOffset) + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, BgTilemapIndex(r5, temp), MAP_VIEW_ORIGIN_X + column, gSaveBlock1Ptr->pos.y + i / 2);
+        DrawMetatileAt(mapLayout, BgTilemapIndex(r5, temp), MAP_VIEW_ORIGIN_X + column, MAP_VIEW_ORIGIN_Y + i / 2);
     }
 }
 
@@ -373,10 +398,10 @@ static s32 MapPosToBgTilemapOffset(struct FieldCameraOffset *cameraOffset, s32 x
     if (x >= tilesX)
         x -= tilesX;
 
-    y = (y - gSaveBlock1Ptr->pos.y) * 2;
+    y = (y - MAP_VIEW_ORIGIN_Y) * 2;
     if (y >= 32 || y < 0)
         return -1;
-    y = y + cameraOffset->yTileOffset;
+    y = y + MAP_VIEW_RING_TOP(cameraOffset);
     if (y >= 32)
         y -= 32;
 
@@ -467,6 +492,13 @@ void CameraUpdateNoObjectRefresh(void)
     if (deltaX != 0 || deltaY != 0)
     {
         CameraMove(deltaX, deltaY);
+#ifdef PORTABLE
+        // See sMapViewTopRow.
+        if (deltaY > 0)
+            sMapViewTopRow = -1;
+        else if (deltaY < 0)
+            sMapViewTopRow = 0;
+#endif
         AddCameraTileOffset(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
         RedrawMapSlicesForCameraUpdate(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
 #ifdef PORTABLE
@@ -540,6 +572,13 @@ void CameraUpdate(void)
         UpdateObjectEventsForCameraUpdate(deltaX, deltaY);
         RotatingGatePuzzleCameraUpdate(deltaX, deltaY);
         SetBerryTreesSeen();
+#ifdef PORTABLE
+        // See sMapViewTopRow.
+        if (deltaY > 0)
+            sMapViewTopRow = -1;
+        else if (deltaY < 0)
+            sMapViewTopRow = 0;
+#endif
         AddCameraTileOffset(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
         RedrawMapSlicesForCameraUpdate(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
 #ifdef PORTABLE
