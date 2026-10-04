@@ -15,12 +15,15 @@ Rules for this log:
 
 ## 2026-10-04, session 6: start screen, zoomed out 4:3, RG DS bottom screen
 
-State at end of session: **0.3.0 built, not released.** Release APK
-`android/app/build/outputs/apk/release/app-release.apk` (sha256
-d1135a10...ea325) waits for the owner's play-test on the Thor. Everything
-below was checked on the arm64 Android 14 emulator (`hns64`, set to 640x480
-with a 640x480 overlay display to stand in for an RG DS) and headless. None
-of it has run on a Thor or an RG DS.
+State at end of session: **v0.3.0 published as the Latest release**
+(the first full release; 0.1.x and 0.2.0 stay pre-releases), asset
+`HeartSoulRecomp-0.3.0.apk`, sha256 a1cecd98...6f09b5. The owner played
+0.3.0 on the Thor (widescreen fit, widescreen pixel perfect, zoomed out
+pixel perfect; log clean, Presentation path used, 120 loop passes/s) and then
+asked for the title screen version and the release. The title change came
+after his play-test: checked headless and on the emulator with the exact
+release APK, and installed on the Thor, but he has not opened that exact
+build. Nothing has run on an RG DS.
 
 ### The RG DS report that started it
 
@@ -79,7 +82,16 @@ were white (photo in the owner's chat).
 - **Bottom screen size**: design height 240 instead of 250, so 640x480 draws
   at 2x (was 1x, tiny). Thor stays at 4x. Checked with the battle and
   overworld preview JSONs at 640x480.
-- Version 0.3.0 (versionCode 4).
+- **Title screen version**: "v2.0.6 RECOMP 0.3.0" under PRESS START, drawn
+  at startup in the press start graphic's style from `HNS_PORT_VERSION` in
+  `include/port_version.h` (`CreatePortVersionBanner`, `src/title_screen.c`).
+  `build.gradle` reads versionName from that header: bump it there for a
+  release (and versionCode in build.gradle). Headless, 64-bit, against the
+  previous build: walk and menus (wide and tall) and a wild battle through
+  to a level-up are byte-identical outside the title frames, except one
+  24px row of left margin during the battle transition (the window fix).
+  The owner's Thor save loads headless in zoomed out.
+- Version 0.3.0 (versionCode 4). README updated for 0.3.0.
 
 ### Known issues
 
@@ -99,12 +111,11 @@ were white (photo in the owner's chat).
 
 ### Next
 
-1. Owner plays the 0.3.0 release APK on the Thor: start screen with the
-   pad, widescreen as before, the bottom screen still a Presentation there,
-   then zoomed out and pixel perfect for a look.
-2. Send it to the RG DS friend; ask for the start screen, zoomed out, the
-   bottom screen, and `adb logcat -s HeartSoul` if the bottom screen fails.
-3. Publish 0.3.0 once the owner says so.
+1. RG DS report on 0.3.0 from the friend: zoomed out, speed (tall costs
+   about 25% more render time), and whether the bottom screen opens over
+   Daijisho. If not, get `adb logcat -s HeartSoul` (the displays line).
+2. Owner's first look at the final title screen on the Thor.
+3. The tall-screen known issues above, if anyone hits them.
 
 ---
 
