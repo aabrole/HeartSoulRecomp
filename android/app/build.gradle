@@ -15,6 +15,15 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
+// The version name lives in include/port_version.h, which the title screen
+// also shows, so a release changes it in one place.
+def portVersionHeader = rootProject.file('../include/port_version.h')
+def portVersionMatch = (portVersionHeader.getText('UTF-8') =~ /#define\s+HNS_PORT_VERSION\s+"([^"]+)"/)
+if (!portVersionMatch.find()) {
+    throw new GradleException("include/port_version.h: no HNS_PORT_VERSION")
+}
+def portVersionName = portVersionMatch.group(1)
+
 android {
     namespace 'com.heartsoul.recomp'
     compileSdk 34
@@ -25,7 +34,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 4
-        versionName '0.3.0'
+        versionName portVersionName
 
         ndk {
             // Both: devices without 32-bit support (such as the Anbernic

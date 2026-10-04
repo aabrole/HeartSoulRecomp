@@ -22,11 +22,17 @@
 #include "graphics.h"
 #include "constants/rgb.h"
 #include "constants/songs.h"
+#ifdef PORTABLE
+#include "port_version.h"
+#endif
 
 enum {
     TAG_VERSION = 1000,
     TAG_PRESS_START_COPYRIGHT,
     TAG_LOGO_SHINE,
+#ifdef PORTABLE
+    TAG_PORT_VERSION,
+#endif
 };
 
 #define VERSION_BANNER_RIGHT_TILEOFFSET 64
@@ -438,11 +444,18 @@ static void CreatePressStartBanner(s16 x, s16 y)
     }
 }
 
+#ifdef PORTABLE
+static s16 CreatePortVersionBanner(s16 x, s16 y);
+#endif
+
 static void CreateCopyrightBanner(s16 x, s16 y)
 {
     u8 i;
     u8 spriteId;
 
+#ifdef PORTABLE
+    x += CreatePortVersionBanner(x, y);
+#endif
     x -= 64;
     for (i = 0; i < NUM_COPYRIGHT_FRAMES; i++, x += 32)
     {
@@ -453,6 +466,238 @@ static void CreateCopyrightBanner(s16 x, s16 y)
         #endif
     }
 }
+
+#ifdef PORTABLE
+// "RECOMP 0.3.0" after Heart & Soul's "v2.0.6" under PRESS START, so a
+// player can see which build of the port is running. Drawn at startup in the
+// style of that graphic (graphics/title_screen/hns/press_start.png): letters
+// 5 pixels high with strokes 2 wide, shaded white, white, light grey, grey,
+// grey from the top, rounded corners in a darker grey, and a black outline
+// all round. R, E, P, 0, 2 and 6 are copied from it; the rest are drawn to
+// match. Each glyph is 5 rows of '#' (filled), 'o' (rounded corner) and '.'.
+struct PortVersionGlyph
+{
+    char c;
+    u8 width;
+    const char *rows[5];
+};
+
+static const struct PortVersionGlyph sPortVersionGlyphs[] =
+{
+    {'0', 7, {"o#####o", "##...##", "##...##", "##...##", "o#####o"}},
+    {'1', 5, {"####.", "..##.", "..##.", "..##.", "#####"}},
+    {'2', 7, {"######o", ".....##", "o######", "##.....", "#######"}},
+    {'3', 7, {"######o", ".....##", "..####o", ".....##", "######o"}},
+    {'4', 7, {"##...##", "##...##", "#######", ".....##", ".....##"}},
+    {'5', 7, {"#######", "##.....", "######o", ".....##", "######o"}},
+    {'6', 7, {"#######", "##.....", "######o", "#o...##", "######o"}},
+    {'7', 7, {"#######", ".....##", "....##.", "...##..", "...##.."}},
+    {'8', 7, {"o#####o", "##...##", "o#####o", "##...##", "o#####o"}},
+    {'9', 7, {"o######", "##...o#", "o######", ".....##", "#######"}},
+    {'.', 1, {".", ".", ".", ".", "#"}},
+    {'C', 7, {"o######", "##.....", "##.....", "##.....", "o######"}},
+    {'D', 7, {"######o", "##...##", "##...##", "##...##", "######o"}},
+    {'E', 7, {"#######", "##.....", "#####..", "##.....", "#######"}},
+    {'M', 8, {"###..###", "########", "##.##.##", "##....##", "##....##"}},
+    {'O', 7, {"o#####o", "##...##", "##...##", "##...##", "o#####o"}},
+    {'P', 7, {"######o", "##...##", "##...##", "#######", "##....."}},
+    {'R', 7, {"######.", "##...##", "##...##", "##.###.", "##..###"}},
+    {'V', 7, {"##...##", "##...##", "##...##", ".##.##.", "..###.."}},
+};
+
+#define PORT_VERSION_SPACE    4
+#define PORT_VERSION_SPRITES  4
+#define PORT_VERSION_WIDTH    (PORT_VERSION_SPRITES * 32)
+// Where "v2.0.6" is drawn, in screen columns, with the banner at
+// START_BANNER_X, and the gap before the port's text.
+#define HNS_VERSION_LEFT      99
+#define HNS_VERSION_RIGHT     132
+#define PORT_VERSION_GAP      3
+
+static const union AnimCmd sAnim_PortVersion_0[] = { ANIMCMD_FRAME(0, 4), ANIMCMD_END };
+static const union AnimCmd sAnim_PortVersion_1[] = { ANIMCMD_FRAME(4, 4), ANIMCMD_END };
+static const union AnimCmd sAnim_PortVersion_2[] = { ANIMCMD_FRAME(8, 4), ANIMCMD_END };
+static const union AnimCmd sAnim_PortVersion_3[] = { ANIMCMD_FRAME(12, 4), ANIMCMD_END };
+
+static const union AnimCmd *const sPortVersionAnimTable[PORT_VERSION_SPRITES] =
+{
+    sAnim_PortVersion_0,
+    sAnim_PortVersion_1,
+    sAnim_PortVersion_2,
+    sAnim_PortVersion_3,
+};
+
+static const struct SpriteTemplate sPortVersionSpriteTemplate =
+{
+    .tileTag = TAG_PORT_VERSION,
+    .paletteTag = TAG_PRESS_START_COPYRIGHT,
+    .oam = &sOamData_CopyrightBanner,
+    .anims = sPortVersionAnimTable,
+    .callback = SpriteCB_PressStartCopyrightBanner,
+};
+
+// The text as 8 rows of palette indices, then as 4bpp sprite tiles.
+static u8 sPortVersionPixels[8][PORT_VERSION_WIDTH];
+static u32 sPortVersionTiles[PORT_VERSION_SPRITES * 4 * 8];
+
+static const struct PortVersionGlyph *GetPortVersionGlyph(char c)
+{
+    u32 i;
+
+    for (i = 0; i < ARRAY_COUNT(sPortVersionGlyphs); i++)
+    {
+        if (sPortVersionGlyphs[i].c == c)
+            return &sPortVersionGlyphs[i];
+    }
+    return NULL;
+}
+
+// Fills rows 1-5 with 1 for a filled pixel and 2 for a rounded corner, glyph
+// after glyph with one column between them for the shared outline. Returns
+// the width used, outline included.
+static u32 LayOutPortVersionText(const char *text)
+{
+    u32 x = 1;
+    u32 row;
+    u32 col;
+
+    for (; *text != '\0'; text++)
+    {
+        const struct PortVersionGlyph *glyph = GetPortVersionGlyph(*text);
+
+        if (*text == ' ')
+        {
+            x += PORT_VERSION_SPACE;
+            continue;
+        }
+        if (glyph == NULL || x + glyph->width + 1 > PORT_VERSION_WIDTH)
+            continue;
+        for (row = 0; row < 5; row++)
+        {
+            for (col = 0; col < glyph->width; col++)
+            {
+                char c = glyph->rows[row][col];
+
+                sPortVersionPixels[row + 1][x + col] = (c == '#') ? 1 : (c == 'o') ? 2 : 0;
+            }
+        }
+        x += glyph->width + 1;
+    }
+    return x;
+}
+
+// Turns the layout into palette indices of press_start.gbapal: 0 clear,
+// 1 black, 2 dark grey, 3 grey, 4 light grey, 5 white.
+static void ShadePortVersionText(u32 width)
+{
+    static const u8 sRowShade[8] = {0, 5, 5, 4, 3, 3, 0, 0};
+    u8 shape[8][PORT_VERSION_WIDTH];
+    s32 x;
+    s32 y;
+    s32 dx;
+    s32 dy;
+
+    memcpy(shape, sPortVersionPixels, sizeof(shape));
+    for (y = 0; y < 8; y++)
+    {
+        for (x = 0; x < (s32)width; x++)
+        {
+            bool32 outline = FALSE;
+
+            if (shape[y][x] == 1)
+            {
+                sPortVersionPixels[y][x] = sRowShade[y];
+                continue;
+            }
+            if (shape[y][x] == 2)
+            {
+                sPortVersionPixels[y][x] = 2;
+                continue;
+            }
+            // Black next to a filled pixel, diagonals included, or beside or
+            // above or below a rounded corner, as in the original.
+            for (dy = -1; dy <= 1; dy++)
+            {
+                for (dx = -1; dx <= 1; dx++)
+                {
+                    s32 nx = x + dx;
+                    s32 ny = y + dy;
+
+                    if (nx < 0 || ny < 0 || nx >= (s32)width || ny >= 8)
+                        continue;
+                    if (shape[ny][nx] == 1 || (shape[ny][nx] == 2 && (dx == 0 || dy == 0)))
+                        outline = TRUE;
+                }
+            }
+            sPortVersionPixels[y][x] = outline ? 1 : 0;
+        }
+    }
+}
+
+// 4bpp tiles, 1D mapped: each 32x8 sprite is four 8x8 tiles in a row. A tile
+// row is one u32, the leftmost pixel in the low nibble.
+static void PackPortVersionTiles(void)
+{
+    u32 tile;
+    u32 y;
+    u32 x;
+
+    for (tile = 0; tile < PORT_VERSION_SPRITES * 4; tile++)
+    {
+        for (y = 0; y < 8; y++)
+        {
+            u32 rowBits = 0;
+
+            for (x = 0; x < 8; x++)
+                rowBits |= (u32)(sPortVersionPixels[y][tile * 8 + x] & 0xF) << (x * 4);
+            sPortVersionTiles[tile * 8 + y] = rowBits;
+        }
+    }
+}
+
+// Draws the port's version after Heart & Soul's and returns how far the
+// whole line has to move so that it stays centred. x and y are what the
+// copyright banner is created with.
+static s16 CreatePortVersionBanner(s16 x, s16 y)
+{
+    struct SpriteSheet sheet;
+    u32 width;
+    u32 sprites;
+    u32 i;
+    s16 shift;
+    s16 left;
+    u8 spriteId;
+
+    memset(sPortVersionPixels, 0, sizeof(sPortVersionPixels));
+    width = LayOutPortVersionText("RECOMP " HNS_PORT_VERSION);
+    ShadePortVersionText(width);
+    PackPortVersionTiles();
+
+    sheet.data = sPortVersionTiles;
+    sheet.size = sizeof(sPortVersionTiles);
+    sheet.tag = TAG_PORT_VERSION;
+    LoadSpriteSheet(&sheet);
+
+    // Centre "v2.0.6", the gap and the port's text together.
+    left = (DISPLAY_WIDTH - (HNS_VERSION_RIGHT - HNS_VERSION_LEFT + 1 + PORT_VERSION_GAP + (s16)width)) / 2;
+    shift = left - HNS_VERSION_LEFT;
+    left = x - START_BANNER_X + HNS_VERSION_RIGHT + 1 + PORT_VERSION_GAP + shift;
+
+    sprites = (width + 31) / 32;
+    for (i = 0; i < sprites; i++)
+    {
+        // A sprite's position is its centre.
+        spriteId = CreateSprite(&sPortVersionSpriteTemplate, left + i * 32 + 16, y, 0);
+        if (spriteId == MAX_SPRITES)
+            break;
+        StartSpriteAnim(&gSprites[spriteId], i);
+        #if IS_HNS
+        gSprites[spriteId].sAnimate = TRUE;
+        #endif
+    }
+    return shift;
+}
+#endif
 
 #undef sAnimate
 #undef sTimer
