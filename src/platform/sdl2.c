@@ -89,6 +89,46 @@ static bool sHeadless = false;
 // Frames run so far in headless mode, for HNS_CLOCK.
 static unsigned long sHeadlessFrame;
 
+// How the frame fills the screen, from HNS_SCALE:
+//   fit      (default) as large as fits, keeping its shape
+//   integer  as large as fits at a whole multiple, so every GBA pixel is the
+//            same size; the picture can be smaller than with fit
+//   stretch  fills the whole screen, changing its shape
+// Fit and integer leave black bars where the shapes differ.
+enum
+{
+    SCALE_FIT,
+    SCALE_INTEGER,
+    SCALE_STRETCH,
+};
+static int sScaleMode = SCALE_FIT;
+
+static void ApplyScaleMode(void)
+{
+    if (sdlRenderer == NULL)
+        return;
+    if (sScaleMode == SCALE_STRETCH)
+    {
+        // No logical size: the frame is copied over the whole output.
+        SDL_RenderSetLogicalSize(sdlRenderer, 0, 0);
+        SDL_RenderSetIntegerScale(sdlRenderer, SDL_FALSE);
+        return;
+    }
+    SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
+    SDL_RenderSetIntegerScale(sdlRenderer, sScaleMode == SCALE_INTEGER ? SDL_TRUE : SDL_FALSE);
+}
+
+static void SetScaleMode(const char *name)
+{
+    if (name != NULL && strcmp(name, "integer") == 0)
+        sScaleMode = SCALE_INTEGER;
+    else if (name != NULL && strcmp(name, "stretch") == 0)
+        sScaleMode = SCALE_STRETCH;
+    else
+        sScaleMode = SCALE_FIT;
+    ApplyScaleMode();
+}
+
 // Widescreen: HNS_WIDESCREEN=1 renders 288x160 instead of 240x160. See
 // include/platform.h. Off by default. Screenshots are saved at the size
 // that was rendered.
@@ -101,8 +141,7 @@ void Platform_SetWidescreen(bool32 enabled)
     gRenderMargin = 0;
 #endif
     gRenderWidth = DISPLAY_WIDTH + 2 * gRenderMargin;
-    if (sdlRenderer != NULL)
-        SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
+    ApplyScaleMode();
     if (sdlWindow != NULL)
         SDL_SetWindowSize(sdlWindow, gRenderWidth * videoScale, DISPLAY_HEIGHT * videoScale);
 }
@@ -125,6 +164,8 @@ void Platform_SetWidescreen(bool32 enabled)
 //   HNS_TEST_BATTLE=N       give a Cyndaquil and start a wild battle on frame N
 //   HNS_WARP=N:G:M:X:Y      on frame N, warp to map group G, map M, position X,Y
 //   HNS_WIDESCREEN=1        render 288x160 (also applies with a display)
+//   HNS_SCALE=MODE          fit (default), integer or stretch: how the frame fills
+//                           the window. On Android the start screen sets both.
 //   HNS_CLOCK=EPOCH         start the clock at that Unix time and advance it one second
 //                           every 60 frames, so two runs see the same time of day and
 //                           RNG seed and their shots can be compared byte for byte
@@ -494,9 +535,10 @@ int main(int argc, char **argv)
 
     // Before the window exists, so it is created at the right size.
 #ifdef __ANDROID__
-    // There is no environment to set on Android. Use widescreen only on a
-    // screen at least 16:10, so 4:3 handhelds (Anbernic RG DS) get the full
-    // GBA picture instead of a letterboxed wide one.
+    // The app's start screen sets HNS_WIDESCREEN from the player's choice
+    // (HeartSoulActivity). Without one, use widescreen only on a screen at
+    // least 16:10, so 4:3 handhelds (Anbernic RG DS) get the full GBA
+    // picture instead of a letterboxed wide one.
     {
         SDL_DisplayMode mode;
         bool wide = true;
@@ -507,8 +549,11 @@ int main(int argc, char **argv)
             int shortSide = mode.w > mode.h ? mode.h : mode.w;
 
             wide = longSide * 10 >= shortSide * 16;
-            SDL_Log("display %dx%d, widescreen %s", mode.w, mode.h, wide ? "on" : "off");
         }
+        if (widescreen != NULL && widescreen[0] != '\0')
+            wide = strtoul(widescreen, NULL, 10) != 0;
+        SDL_Log("display %dx%d, widescreen %s, scale %s", mode.w, mode.h, wide ? "on" : "off",
+                getenv("HNS_SCALE") != NULL ? getenv("HNS_SCALE") : "fit");
         Platform_SetWidescreen(wide);
     }
 #else
@@ -534,10 +579,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    SDL_SetRenderDrawColor(sdlRenderer, 255, 255, 255, 255);
+    // Black, and cleared every frame: the bars around a picture that does not
+    // fill the screen were white, and kept whatever the last frame left there.
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
     SDL_RenderClear(sdlRenderer);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-    SDL_RenderSetLogicalSize(sdlRenderer, gRenderWidth, DISPLAY_HEIGHT);
+    SetScaleMode(getenv("HNS_SCALE"));
 
     // Created at the widest geometry. Only the leftmost gRenderWidth columns
     // are uploaded and drawn, so widescreen can change without a new texture.
@@ -660,6 +707,7 @@ int main(int argc, char **argv)
         {
             SDL_Rect frameRect = {0, 0, gRenderWidth, DISPLAY_HEIGHT};
 
+            SDL_RenderClear(sdlRenderer);
             SDL_RenderCopy(sdlRenderer, sdlTexture, &frameRect, NULL);
         }
         SDL_RenderPresent(sdlRenderer);
