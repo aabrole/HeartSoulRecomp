@@ -36,20 +36,50 @@ enum DualScreenTap
     DS_TAP_ACTION, // index is an enum DualScreenAction
 };
 
+enum DualScreenStat
+{
+    DS_STAT_HP,
+    DS_STAT_ATK,
+    DS_STAT_DEF,
+    DS_STAT_SPATK,
+    DS_STAT_SPDEF,
+    DS_STAT_SPEED,
+    DS_STAT_COUNT,
+};
+
 struct DualScreenMove
 {
     u16 id;
     u8 pp;
     u8 maxPp;
     u8 type;
+    u8 category; // enum DamageCategory: physical, special, status
+    u8 power;    // 0 for a status move; 1 for one whose power varies
+    u8 accuracy; // 0 for a move that never misses
     char name[DS_TEXT_LENGTH];
     char typeName[DS_TEXT_LENGTH];
 };
 
 struct DualScreenMon
 {
-    u16 species;
+    u16 species;     // SPECIES_EGG for an egg
+    u16 iconSpecies; // the species inside an egg too, for its icon
+    u32 personality;
     bool8 isEgg;
+    bool8 isShiny;
+    u8 gender;       // MON_MALE, MON_FEMALE or MON_GENDERLESS
+    u8 types[3];     // TYPE_NONE where unused; battle mons can have a third
+    bool8 hasDetails; // party mons: the fields below are filled
+    char abilityName[DS_TEXT_LENGTH];
+    char natureName[DS_TEXT_LENGTH];
+    u8 natureUp;     // enum DualScreenStat raised by the nature, or DS_STAT_COUNT
+    u8 natureDown;
+    u16 stats[DS_STAT_COUNT]; // stats[DS_STAT_HP] is the max HP
+    u8 ivs[DS_STAT_COUNT];
+    u8 evs[DS_STAT_COUNT];
+    u32 expThisLevel;  // experience gained since the current level
+    u32 expNextLevel;  // experience the current level takes, 0 at the max level
+    u8 friendship;
     u8 level;
     u16 hp;
     u16 maxHp;
@@ -73,7 +103,9 @@ struct DualScreenBattle
     bool8 hasPlayerMon;
     bool8 hasFoe;
     struct DualScreenMon playerMon; // battle values: Transform, Mimic and in-battle PP
-    struct DualScreenMon foe;       // name, level, HP and status only
+    struct DualScreenMon foe;       // name, level, HP, status and types only
+    u8 foeTeamCount;  // trainer battles: the opponents' Pokémon, eggs left out
+    u8 foeTeamLeft;   // of those, the ones not fainted
 };
 
 struct DualScreenSnapshot
@@ -91,6 +123,7 @@ struct DualScreenSnapshot
     u8 partyCount;
     struct DualScreenMon party[PARTY_SIZE];
     struct DualScreenBattle battle;
+    bool8 fastForward;
 };
 
 // Game thread only: reads live game state.
@@ -110,6 +143,20 @@ u16 DualScreen_ConsumeInjectedKeys(void);
 
 // Any thread.
 int DualScreen_CopyJson(char *dest, int capacity);
+// The bag as JSON, published every DS_BAG_INTERVAL frames while wanted. Before
+// the first publish after it is wanted, an empty bag.
+void DualScreen_SetBagWanted(bool32 wanted);
+int DualScreen_CopyBagJson(char *dest, int capacity);
+// The type chart as JSON: type names and every attack-on-defence multiplier.
+// Reads constant data only.
+int DualScreen_TypeChartJson(char *dest, int capacity);
+// A Pokémon's menu icon (first frame) as 32x32 ARGB, 0 where transparent.
+// Reads constant data only. Returns FALSE for a species out of range.
+bool32 DualScreen_MonIcon(u32 species, u32 personality, bool32 isEgg, u32 *argb);
+// An item's bag icon as 24x24 ARGB. The icons are compressed and only the
+// game thread may decompress, so the first ask for an item returns FALSE and
+// queues it; the game thread decodes it within a few frames.
+bool32 DualScreen_ItemIcon(u32 item, u32 *argb);
 void DualScreen_InjectKeys(u16 keys, u32 frames);
 void DualScreen_RequestTap(u32 kind, u32 index);
 

@@ -173,6 +173,7 @@ void Platform_SetTallScreen(bool32 enabled)
 //   HNS_SHOT_EVERY=N        also save a shot every N frames
 //   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
 //   HNS_STATE_DUMP=N        print the bottom-screen state JSON to stderr every N frames
+//   HNS_BAG_DUMP=1          with HNS_STATE_DUMP, print the bag JSON as well
 //   HNS_TAP=2700:MOVE1,2900:RUN   bottom-screen taps: MOVE1-4, FIGHT, BAG, POKEMON, RUN
 //   HNS_WAV=path            write everything the game queues as audio to a WAV file
 //                           (32-bit float, stereo, 42048 Hz)
