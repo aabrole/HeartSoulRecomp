@@ -33,7 +33,7 @@ android {
         applicationId 'com.heartsoul.recomp'
         minSdk 26
         targetSdk 34
-        versionCode 4
+        versionCode 5
         versionName portVersionName
 
         ndk {

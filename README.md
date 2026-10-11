@@ -6,17 +6,17 @@ Pokémon Heart & Soul running natively on Android, built for dual-screen handhel
 
 This is a fan project. It is not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the Heart & Soul team.
 
-**Status: test build 0.3.0.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading, and 0.2.0 has run on an Anbernic RG DS. Expect bugs.
+**Status: test build 0.4.0.** It has been played on an AYN Thor from a new game through the first battles on Route 29, including saving and loading, and 0.3.0 has run on an Anbernic RG DS. Expect bugs.
 
 ## Download and install
 
-**[Download HeartSoulRecomp-0.3.0.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.3.0/HeartSoulRecomp-0.3.0.apk)** (95 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
+**[Download HeartSoulRecomp-0.4.0.apk](https://github.com/aabrole/HeartSoulRecomp/releases/download/v0.4.0/HeartSoulRecomp-0.4.0.apk)** (96 MB). Every version and its notes are on the [Releases](https://github.com/aabrole/HeartSoulRecomp/releases) page.
 
 1. Download the APK on your device, or copy it over from a computer.
 2. Open it and allow installing from unknown sources when Android asks.
 3. Launch **Heart & Soul**.
 
-**Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save. The title screen shows which version you are running, after Heart & Soul's own: `v2.0.6 RECOMP 0.3.0`.
+**Updating:** install the new APK over the old one. Your save is kept. Do not uninstall first, because uninstalling deletes the save. The title screen shows which version you are running, after Heart & Soul's own: `v2.0.6 RECOMP 0.4.0`.
 
 Requirements: Android 8 or newer on an ARM device. The APK contains both a 64-bit (`arm64-v8a`) and a 32-bit (`armeabi-v7a`) build, and Android picks the right one, so it also installs on 64-bit-only systems such as some custom handheld firmware.
 
@@ -26,8 +26,39 @@ Requirements: Android 8 or newer on an ARM device. The APK contains both a 64-bi
 - **Start screen.** Before the game starts, choose the picture, the scaling and whether to use the bottom screen. A preview shows how the picture will sit on your screen. Press A to play with your last choices.
 - **Widescreen and zoomed out.** Widescreen (288×160) shows more of the map to the left and right. Zoomed out (288×216, 4:3) also adds rows above and below, so a 4:3 screen like the Anbernic RG DS's is filled with more of the map instead of black bars. Original (240×160) is the GBA picture. Widescreen is the default on 16:9 screens, zoomed out on 4:3 screens.
 - **Scaling.** Fit (as big as fits), pixel perfect (whole-number zoom, every pixel the same size) or stretch (fills the screen, changes the shape).
-- **Bottom screen.** On a device with a second screen, it shows your party, money, badges and play time, and in battle has touch buttons for moves, Bag, Pokémon and Run, drawn in the game's own font. On handhelds whose second screen runs its own launcher, such as the RG DS, it opens over that launcher and the controller stays on the game.
-- **Controller support.** Built-in controls and gamepads work. The button labelled A is A. Hold the right trigger to fast-forward.
+- **Bottom screen companion.** On a device with a second screen, a companion that reads the game as you play, drawn in the game's own font and icons. See below.
+- **Fast forward.** The right trigger (R2) fast-forwards. On the start screen pick HOLD (while held), TOGGLE (one pull on, the next off) or SMART (toggle, but menus run at normal speed so the cursor does not race).
+- **Controller support.** Built-in controls and gamepads work. The button labelled A is A.
+
+## The bottom screen
+
+A status line (name, place, money, badges, play time, fast forward) and seven tabs:
+
+- **PARTY:** your team with icons, HP, status and moves. Touch one for its summary: types, ability, nature, stats with IVs and EVs, EXP to the next level, moves with power and accuracy, and its type weaknesses and resistances.
+- **BATTLE:** opens by itself when a battle starts. The foe's types, a ball for each of a trainer's Pokémon, your moves marked SUPER, RESISTED or NO EFFECT, a BEST tag on the strongest move and on a party member worth switching to, the trainer's whole team under FOE, and touch buttons for moves, Bag, Pokémon and Run.
+- **BAG:** every pocket, with item icons, descriptions and the move each TM teaches.
+- **MAP:** the game's region map with you on it. Touch a place to see its name.
+- **DEX:** your Pokédex with seen and caught marks. Each entry has the Pokémon's picture, Pokédex text, base stats, abilities, evolutions, the moves it learns and where to find it.
+- **GUIDE:** HERE lists the wild Pokémon on your route (grass, surfing, Rock Smash, each rod) with levels and odds; ones you have not seen stay hidden until touched. NEXT BOSS names your next gym leader or League opponent, with their team behind a button so nothing is spoiled by accident.
+- **CARD:** your trainer card, with all sixteen badges.
+
+Everything comes straight from the game's own data, so it is exact for Heart & Soul, including the gym leaders whose teams depend on the order you beat them. On handhelds whose second screen runs its own launcher, such as the RG DS, the bottom screen opens over that launcher and the controller stays on the game.
+
+<p align="center">
+<img src="port/screenshots/bottom-party.png" width="32%" alt="PARTY tab">
+<img src="port/screenshots/bottom-summary.png" width="32%" alt="A Pokémon's summary">
+<img src="port/screenshots/bottom-battle.png" width="32%" alt="BATTLE tab with BEST and FOE">
+<img src="port/screenshots/bottom-bag.png" width="32%" alt="BAG tab">
+<img src="port/screenshots/bottom-map.png" width="32%" alt="MAP tab">
+<img src="port/screenshots/bottom-dex.png" width="32%" alt="DEX tab">
+<img src="port/screenshots/bottom-dex-entry.png" width="32%" alt="A Pokédex entry">
+<img src="port/screenshots/bottom-dex-moves.png" width="32%" alt="Moves a Pokémon learns">
+<img src="port/screenshots/bottom-guide-here.png" width="32%" alt="GUIDE: wild Pokémon here">
+<img src="port/screenshots/bottom-guide-boss.png" width="32%" alt="GUIDE: the next boss">
+<img src="port/screenshots/bottom-card.png" width="32%" alt="Trainer card">
+</p>
+
+Screenshots from the Thor's 1240×1080 bottom screen. The party, summary and battle shots use a sample team.
 
 ## Saves
 
@@ -37,7 +68,8 @@ Your save is `Android/data/com.heartsoul.recomp/files/pokeemerald.sav` on the de
 
 - Only the start of the game has been tested. Other areas may crash.
 - Very occasionally Android has closed the app while drawing the screen. Save often.
-- The zoomed out picture and the new bottom screen support have not been tested on an RG DS itself yet. If the bottom screen does not appear there, please report it with the output of `adb logcat -s HeartSoul`.
+- On an RG DS running 0.3.0 the bottom screen stayed on the launcher. If it still does with 0.4.0, please report it with the output of `adb logcat -s HeartSoul`.
+- The bottom screen's matchups and BEST tags go by types, power and stats only; abilities, items and weather are not counted.
 - In widescreen and zoomed out, a few screens (title, menus, bag, party) keep their GBA size with black bars around them, and in zoomed out battles have bars above and below, as designed.
 - Zoomed out: weather such as rain does not reach the extra rows, and very tall objects can appear at the top edge all at once.
 - Start screen choices apply when the game starts. To change them mid-session, close the app from recent apps and open it again.
@@ -56,7 +88,7 @@ See [`PORT_PLAN.md`](PORT_PLAN.md) and the newest entry in [`PORT_LOG.md`](PORT_
 - **[pret/pokeemerald](https://github.com/pret/pokeemerald)**: the decompilation everything above is built on.
 - **[NTx86/pokeemerald-sdl2pc](https://github.com/NTx86/pokeemerald-sdl2pc)**: the native PC port layer, including its expansion port work.
 - **[Goldoire/pokeemerald-dualscreen](https://github.com/Goldoire/pokeemerald-dualscreen)** and **[gradenGnostic/pokeemerald-multiplatform](https://github.com/gradenGnostic/pokeemerald-multiplatform)**: the widescreen renderer and the dual-screen design this follows.
-- **[lidor30/PokeDaisy](https://github.com/lidor30/pokedaisy)**: the companion screen's tabs (party summary, battle matchups, bag) follow its design. No code is copied; ours reads the game's own data natively.
+- **[lidor30/PokeDaisy](https://github.com/lidor30/pokedaisy)**: the bottom screen's tabs (party, battle, bag, map, Pokédex, guide, trainer card) follow its companion screen's design. No code is copied; ours reads the game's own data natively.
 - **[fuddlesworth/pokeemerald-native](https://github.com/fuddlesworth/pokeemerald-native)**: reference for the native port.
 - **[SDL](https://www.libsdl.org/)**.
 

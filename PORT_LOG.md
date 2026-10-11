@@ -13,6 +13,72 @@ Rules for this log:
 
 ---
 
+## 2026-10-11, session 8: every PokeDaisy tab, smart fast forward, v0.4.0
+
+State at end of session: **v0.4.0 published as the Latest release**, asset
+`HeartSoulRecomp-0.4.0.apk`, sha256 f0171a1f...c92c3585 (versionCode 5).
+The owner played the build before the version bump on the Thor ("it was
+good") and asked for the release. The 0.4.0 APK itself was installed on the
+Thor and launched to a clean start screen by Claude (launch and logcat only;
+the owner allowed that), but the owner has not played that exact build. His
+save is unchanged throughout (sha 7c704e7a..., backups
+`port/out/thor-save-backup-2026-10-11*.sav`). Nothing has run on an RG DS.
+
+### Done
+
+- Session 7's work (fast forward toggle, PARTY / BATTLE / BAG) played on
+  the Thor: fine. The owner then asked for the rest of PokeDaisy's features.
+- **Tabs MAP, DEX, GUIDE, CARD** and seven tabs in the small font. See the
+  README section "The bottom screen" and `port/screenshots/bottom-*.png`.
+- **Document channel** (`src/platform/dualscreen_bridge.c`): the view asks
+  for one document (`DS_DOC_BAG/GUIDE/DEX/DEX_ENTRY/MAP`, param = species for
+  an entry) with `nativeSetWantedDoc`; the game thread builds it at the next
+  frame and every 30-240 frames after, with a picture for the entry (front
+  pic 64x64, `LoadSpecialPokePic`) and the map (8bpp region map, palette
+  from colour 112, 256x160). Pictures carry the doc kind, param and key they
+  were drawn for. `HNS_DOC_DUMP=1:0,2:0,3:0,4:155,5:0` dumps them headless
+  and writes `doc_K_P.ppm`. The map grid comes through
+  `RegionMap_MapSecAt` (new, `src/region_map.c`, PORTABLE) because the
+  Johto entries table is sparse and its size is unknown outside.
+- **GUIDE** bosses: badge order, the three middle gyms' order variants,
+  `VAR_LEAGUE_STATE` for the League, Kanto badges, the League rematch, Red.
+  Randomized wild or trainer Pokemon say so instead of guessing (calling the
+  randomizer would draw from the game's RNG).
+- **Battle extras**: BEST move and switch (power x type chart x STAB x
+  attacking stat, switch also divides by the foe's own types against it,
+  needs 1.5x the current mon); YOU / FOE column with the trainer's party.
+- **Fast forward SMART**: toggle, but normal speed unless the field (without
+  the start menu) or a battle's own screen is running
+  (`DualScreen_IsSlowScreen`). Not tested with a real trigger.
+- **Codex adversarial review x2** (model gpt-6-astra). Fixed: GUIDE called
+  `GetTimeOfDay`, which updates time-of-day state and the lighting blend (now
+  reads `gTimeOfDay`); a picture could be cached under the wrong document.
+  Earlier: disabled species assert in `SanitizeSpeciesId`, so every species
+  walk checks `IsSpeciesEnabled`; comma bugs when the first entry is skipped.
+- Emulator testing with the owner's save: push it, launch once, then `cat` it
+  into the app's save (`adb shell "cat /data/local/tmp/s.sav > ..."`). The
+  emulator has no gamepad: use `KEYCODE_ENTER` (START) and `KEYCODE_Z` (A)
+  with `--longpress`; `KEYCODE_BUTTON_A` is dropped by SDL.
+
+### Known issues
+
+- The 640x480 layout of the new tabs (MAP, DEX, GUIDE, CARD) was not looked
+  at; PARTY / BATTLE / BAG were in session 7.
+- Map position for indoor and dungeon maps uses the escape warp's map,
+  simplified from `InitMapBasedOnPlayerLocation`; untested inside buildings.
+- Matchups and BEST ignore abilities, items and weather.
+- RG DS bottom screen over Daijisho still unexplained (session 7).
+
+### Next
+
+1. RG DS: the friend tries 0.4.0; if the launcher still shows, get
+   `adb logcat -s HeartSoul` (the displays line).
+2. Smart fast forward and the new tabs on a real trainer battle and later
+   in the game (Kanto map, national dex).
+3. 640x480 pass over MAP, DEX, GUIDE and CARD.
+
+---
+
 ## 2026-10-11, session 7: fast forward toggle, bottom screen v2 (tabs)
 
 State at end of session: committed on `port` (not pushed, no release). Debug
