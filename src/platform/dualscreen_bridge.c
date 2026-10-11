@@ -21,6 +21,7 @@
 #include "decompress.h"
 #include "graphics.h"
 #include "item.h"
+#include "item_icon.h"
 #include "money.h"
 #include "move.h"
 #include "overworld.h"
@@ -38,7 +39,7 @@
 
 #define DS_JSON_CAPACITY 32768
 #define DS_PUBLISH_INTERVAL 4   // frames between snapshots
-#define DS_BAG_JSON_CAPACITY 65536
+#define DS_BAG_JSON_CAPACITY (192 * 1024) // a full bag with every description is about 66K
 #define DS_BAG_INTERVAL 30      // frames between bag snapshots while the bag is wanted
 #define DS_ITEM_ICON_SIZE 24
 #define DS_ITEM_ICON_CACHE 128  // decoded item icons kept
@@ -274,6 +275,7 @@ static void FillPartyMonDetails(struct DualScreenMon *dest, struct Pokemon *mon,
         [DS_STAT_SPEED] = {MON_DATA_SPEED,  MON_DATA_SPEED_IV, MON_DATA_SPEED_EV},
     };
     u32 i, nature, ability, growthRate, exp, level;
+    enum Ability lastUsedAbility;
 
     if (species >= NUM_SPECIES)
         return;
@@ -287,7 +289,11 @@ static void FillPartyMonDetails(struct DualScreenMon *dest, struct Pokemon *mon,
     dest->types[2] = TYPE_NONE;
     dest->friendship = GetMonData(mon, MON_DATA_FRIENDSHIP);
 
+    // GetMonAbility also sets gLastUsedAbility, which battle scripts read
+    // later (Skill Swap's popup). Reading must leave the game as it was.
+    lastUsedAbility = gLastUsedAbility;
     ability = GetMonAbility(mon);
+    gLastUsedAbility = lastUsedAbility;
     if (ability < ABILITIES_COUNT)
         DecodeGameString(dest->abilityName, sizeof(dest->abilityName), gAbilitiesInfo[ability].name, ABILITY_NAME_LENGTH);
 
@@ -921,6 +927,9 @@ bool32 DualScreen_MonIcon(u32 species, u32 personality, bool32 isEgg, u32 *argb)
 
     if (species == SPECIES_NONE || species >= NUM_SPECIES)
         return FALSE;
+    // Unown's letter comes from its personality, as in GetMonIconPtrIsEgg.
+    if (!isEgg)
+        species = GetIconSpecies(species, personality);
     tiles = GetMonIconTilesIsEgg(species, personality, isEgg);
     if (tiles == NULL)
         return FALSE;
@@ -983,8 +992,10 @@ static void DecodeItemIcons(void)
         sItemIconQueueCount--;
         pthread_mutex_unlock(&sLock);
 
-        pic = gItemsInfo[item].iconPic;
-        palette = gItemsInfo[item].iconPalette;
+        // Through the game's accessors: TMs and HMs share a disc picture
+        // coloured by the taught move's type.
+        pic = GetItemIconPic(item);
+        palette = GetItemIconPalette(item);
         if (pic == NULL || palette == NULL)
         {
             pic = gItemsInfo[ITEM_NONE].iconPic;

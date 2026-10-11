@@ -68,6 +68,7 @@ final class BottomScreenView extends View {
     private static final int UI_POCKET = 105;
     private static final int UI_ITEM = 106;
     private static final int UI_SCROLL = 107; // index 0 up, 1 down
+    private static final int UI_MATCHUPS = 108; // index 1 opens them, 0 goes back
 
     // Palette. Light windows with dark text, as in the game's menus.
     private static final int COLOR_BACKGROUND = 0xFF2E5070;
@@ -153,6 +154,8 @@ final class BottomScreenView extends View {
     private boolean wasInBattle;
     /** The party slot whose summary is open, or -1. */
     private int detailSlot = -1;
+    /** The summary shows the type matchups in place of the info. */
+    private boolean summaryMatchups;
     private int pocket;
     private int bagSelected;
     private int bagScroll;
@@ -525,6 +528,17 @@ final class BottomScreenView extends View {
             return;
         }
 
+        // Too short for the HP row (a battle column on a small screen): the
+        // name and a bare HP bar under it.
+        int compactBar = 6 * s;
+        if (!withMoves && inBottom - inTop < nameRow + minGap + smallRow) {
+            int content = nameRow + minGap + compactBar;
+            int y = inTop + Math.max(0, (inBottom - inTop - content) / 2);
+            drawNameRow(canvas, mon, inLeft, inRight, y + nameRow / 2, nameRow, fainted);
+            drawBar(canvas, inLeft, y + nameRow + minGap + compactBar / 2, inRight, mon.hp, mon.maxHp, null);
+            return;
+        }
+
         // Rows that fit, in priority order: name, HP, held item (if any),
         // then the moves as two rows.
         final int rowName = 0;
@@ -705,7 +719,11 @@ final class BottomScreenView extends View {
         int middleTop = titleBottom + gap;
         int middleBottom = movesTop - gap;
         int split = left + (right - left - gap) * 47 / 100;
-        drawSummaryInfo(canvas, mon, left, middleTop, split, middleBottom);
+        if (summaryMatchups) {
+            drawSummaryMatchups(canvas, mon, left, middleTop, split, middleBottom);
+        } else {
+            drawSummaryInfo(canvas, mon, left, middleTop, split, middleBottom);
+        }
         drawSummaryStats(canvas, mon, split + gap, middleTop, right, middleBottom);
     }
 
@@ -825,16 +843,57 @@ final class BottomScreenView extends View {
         }
         y += row + 2 * s;
 
-        // Matchups from the type chart, by the mon's types alone.
+        // Matchups from the type chart, by the mon's types alone. When they
+        // do not all fit under the info, a button opens them on their own.
         TypeChart chart = typeChart();
         if (chart == null || y + row > bottom) {
             return;
         }
         rect(canvas, inLeft, y, inRight, y + s, SHADOW_DARK);
         y += 2 * s;
+        int limit = bottom - (PAD_Y + 1) * s;
+        if (drawMatchups(canvas, chart, mon, inLeft, inRight, y, limit, labelWidth, false)) {
+            drawMatchups(canvas, chart, mon, inLeft, inRight, y, limit, labelWidth, true);
+        } else {
+            int buttonBottom = Math.min(limit, y + row + 4 * s);
+            drawSmallButton(canvas, "TYPE MATCHUPS " + ARROW_RIGHT, inLeft, y, inRight, buttonBottom,
+                    UI_MATCHUPS, 1, true);
+        }
+    }
+
+    /** The matchups alone, filling the info window, with the way back. */
+    private void drawSummaryMatchups(Canvas canvas, BottomScreenState.Mon mon, int left, int top, int right,
+                                     int bottom) {
+        window(canvas, left, top, right, bottom, COLOR_WINDOW, COLOR_WINDOW_BORDER);
+        int inLeft = left + (PAD_X + 1) * s;
+        int inRight = right - (PAD_X + 1) * s;
+        int row = pillHeight() + s;
+        int y = top + (PAD_Y + 1) * s;
+        GbaText.Fit title = GbaText.fit(gba.small, "TYPE MATCHUPS", (inRight - inLeft) / 2, row, s, s,
+                Math.max(1, s - 1));
+        GbaText.drawCentered(canvas, title, inLeft, y + row / 2, TEXT_DIM, SHADOW_DIM);
+        int backWidth = gba.small[0].width("INFO") * s + 8 * s;
+        drawSmallButton(canvas, "INFO", inRight - backWidth, y, inRight, y + row, UI_MATCHUPS, 0, true);
+        y += row + 2 * s;
+        TypeChart chart = typeChart();
+        if (chart != null) {
+            drawMatchups(canvas, chart, mon, inLeft, inRight, y, bottom - (PAD_Y + 1) * s, -1, true);
+        }
+    }
+
+    /**
+     * WEAK, RESISTS and IMMUNE, each with its types as pills, wrapping onto
+     * more lines. The pills start in a column labelWidth from the left, or
+     * with labelWidth -1 straight after the label, and wrapped lines then
+     * use the full width. With draw false nothing is drawn. Returns whether
+     * all of it fits above limit.
+     */
+    private boolean drawMatchups(Canvas canvas, TypeChart chart, BottomScreenState.Mon mon, int inLeft,
+                                 int inRight, int y, int limit, int labelWidth, boolean draw) {
+        int row = pillHeight() + s;
         int[][] matchups = chart.matchups(mon.types);
         String[] groups = { "WEAK", "RESISTS", "IMMUNE" };
-        for (int g = 0; g < groups.length && y + row <= bottom - (PAD_Y + 1) * s; g++) {
+        for (int g = 0; g < groups.length; g++) {
             List<int[]> group = new ArrayList<>();
             for (int[] matchup : matchups) {
                 int multiplier = matchup[1];
@@ -847,10 +906,18 @@ final class BottomScreenView extends View {
             if (group.isEmpty()) {
                 continue;
             }
+            if (y + row > limit) {
+                return false;
+            }
             int lineCenter = y + row / 2;
-            GbaText.Fit label = GbaText.fit(gba.small, groups[g], labelWidth, row, s, s, Math.max(1, s - 1));
-            GbaText.drawCentered(canvas, label, inLeft, lineCenter, TEXT_DIM, SHADOW_DIM);
-            int x = inLeft + labelWidth;
+            boolean inline = labelWidth < 0;
+            GbaText.Fit label = GbaText.fit(gba.small, groups[g], inline ? inRight - inLeft : labelWidth, row,
+                    s, s, Math.max(1, s - 1));
+            if (draw) {
+                GbaText.drawCentered(canvas, label, inLeft, lineCenter, TEXT_DIM, SHADOW_DIM);
+            }
+            int column = inline ? inLeft : inLeft + labelWidth;
+            int x = inline ? inLeft + label.width + 3 * s : column;
             for (int[] matchup : group) {
                 String name = chart.name(matchup[0]);
                 // Four times and a quarter get a second mark.
@@ -859,18 +926,22 @@ final class BottomScreenView extends View {
                 String text = abbreviate(name) + (double4 ? (matchup[1] > TypeChart.NEUTRAL ? "×4" : "×.25") : "");
                 int pillWidth = gba.small[0].width(text) * s + 4 * s;
                 if (x + pillWidth > inRight) {
-                    // Next line, if there is room.
                     y += row;
                     lineCenter = y + row / 2;
-                    x = inLeft + labelWidth;
-                    if (y + row > bottom - (PAD_Y + 1) * s) {
-                        break;
+                    x = column;
+                    if (y + row > limit) {
+                        return false;
                     }
                 }
-                x = drawPill(canvas, text, typeColor(name), x, lineCenter, inRight - x) + s;
+                if (draw) {
+                    x = drawPill(canvas, text, typeColor(name), x, lineCenter, inRight - x) + s;
+                } else {
+                    x += pillWidth + s;
+                }
             }
             y += row;
         }
+        return true;
     }
 
     /** Type names short enough to sit several to a line. */
@@ -1616,6 +1687,10 @@ final class BottomScreenView extends View {
                 break;
             case UI_BACK:
                 detailSlot = -1;
+                summaryMatchups = false;
+                break;
+            case UI_MATCHUPS:
+                summaryMatchups = button.index == 1;
                 break;
             case UI_PREVIOUS_MON:
             case UI_NEXT_MON:

@@ -56,6 +56,7 @@ See [`PORT_PLAN.md`](PORT_PLAN.md) and the newest entry in [`PORT_LOG.md`](PORT_
 - **[pret/pokeemerald](https://github.com/pret/pokeemerald)**: the decompilation everything above is built on.
 - **[NTx86/pokeemerald-sdl2pc](https://github.com/NTx86/pokeemerald-sdl2pc)**: the native PC port layer, including its expansion port work.
 - **[Goldoire/pokeemerald-dualscreen](https://github.com/Goldoire/pokeemerald-dualscreen)** and **[gradenGnostic/pokeemerald-multiplatform](https://github.com/gradenGnostic/pokeemerald-multiplatform)**: the widescreen renderer and the dual-screen design this follows.
+- **[lidor30/PokeDaisy](https://github.com/lidor30/pokedaisy)**: the companion screen's tabs (party summary, battle matchups, bag) follow its design. No code is copied; ours reads the game's own data natively.
 - **[fuddlesworth/pokeemerald-native](https://github.com/fuddlesworth/pokeemerald-native)**: reference for the native port.
 - **[SDL](https://www.libsdl.org/)**.
 

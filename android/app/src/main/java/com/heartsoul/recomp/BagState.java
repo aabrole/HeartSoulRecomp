@@ -28,13 +28,16 @@ final class BagState {
     int frame = -1;
     final List<Pocket> pockets = new ArrayList<>();
 
-    /** Null for text that cannot be parsed. */
+    /** Null for text that cannot be parsed or that reports an error. */
     static BagState parse(String json) {
         if (json == null || json.isEmpty()) {
             return null;
         }
         try {
             JSONObject root = new JSONObject(json);
+            if (root.has("error")) {
+                return null; // keep showing the last bag that could be read
+            }
             BagState bag = new BagState();
             bag.frame = root.optInt("frame", -1);
             JSONArray pockets = root.optJSONArray("pockets");
