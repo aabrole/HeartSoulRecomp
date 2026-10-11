@@ -13,6 +13,88 @@ Rules for this log:
 
 ---
 
+## 2026-10-11, session 7: fast forward toggle, bottom screen v2 (tabs)
+
+State at end of session: committed on `port` (not pushed, no release). Debug
+APK built and checked on the emulator only. **Nothing from this session has
+run on the Thor or an RG DS.** Version is still 0.3.0.
+
+### Feedback that started it
+
+A friend played 0.3.0 widescreen on an RG DS and loved it ("it FEELS
+widescreen"). Asks: fast forward as a toggle, not hold. The owner asked for
+the bottom screen to be improved after PokeDaisy
+(lidor30/pokedaisy v1.0.4, GPL-3.0, Kotlin, a GBA player with a companion
+screen that supports HnS 2.0.6). Their photo shows the RG DS bottom screen
+**still on the Daijisho launcher with 0.3.0** (black bars, so it is 0.3.0):
+the BottomScreenActivity fallback from session 6 did not take over there.
+
+### Done
+
+- **Fast forward toggle** (`src/platform/sdl2.c`, start screen row FAST
+  FORWARD, default TOGGLE, `HNS_FAST_FORWARD=toggle|hold`). Each pull of R2
+  flips it; release counts only below 8000 so a resting trigger cannot
+  double toggle. Not tested with a real trigger (the emulator has none).
+  Start screen design height 192 -> 210 for the fourth row (Thor still 5x,
+  640x480 still 2x).
+- **Bottom screen data** (`src/platform/dualscreen_bridge.c`): party mon
+  details (types, ability, nature and its stats, stats, IVs, EVs, EXP into
+  the level, friendship, gender, shiny), move category/power/accuracy, foe
+  battle types, trainer team count/left, fast forward flag. The bag is a
+  second JSON (192K buffer) published every 30 frames only while the BAG
+  tab is open. Type chart from `gTypeEffectivenessTable`. Mon icons read
+  straight from const data (any thread); item icons are smol-compressed and
+  the decoder has static state, so the game thread decodes them on request
+  (queue 16, cache 128). Verified headless (64-bit): JSON parses, Mild =
+  +SpA -Def. `HNS_BAG_DUMP=1` added.
+- **Bottom screen UI** (`BottomScreenView`, `TypeChart`, `BagState`,
+  `IconCache`): status line with a fast forward mark, tabs PARTY / BATTLE /
+  BAG. PARTY cards with game icons, touch for a summary (stats with IV/EV,
+  nature colors, moves, EXP, type matchups, with a TYPE MATCHUPS page when
+  they do not fit). BATTLE opens itself on a battle start, marks moves
+  SUPER / RESISTED / NO EFFECT by type chart against the foe's battle types
+  (abilities like Levitate are not counted), shows foe types and trainer
+  balls. BAG: pockets, scrolling list, icon and description. Our own code,
+  PokeDaisy is the design reference only (credited in README); none of its
+  GPL code is copied (this repo has no license of its own).
+- **Debug tooling** (`DebugFiles`): `bottom_bag_preview.json`, and the flag
+  file `dump_bottom_screen` saves `bottom_screen.png` each second (overlay
+  displays cannot be screencapped). Touch an overlay display with
+  `adb shell input -d <displayId> tap x y`; the id is in the `HeartSoul:
+  displays` log line and changes when the overlay is recreated.
+- **Codex review + adversarial review** (model `gpt-6-astra`; the configured
+  `gpt-6.1-sol` is refused on a ChatGPT login). Six findings, all verified
+  real and fixed: gLastUsedAbility clobbered by GetMonAbility, bag JSON
+  could overflow 64K, TM/HM icons (use GetItemIconPic/Palette), Unown icon
+  form (GetIconSpecies), battle cards lost HP at 640x480, summary matchups
+  truncated at 640x480.
+
+Checked on the emulator with preview JSON at 1240x1080 (Thor) and 640x480
+(RG DS): battle, party, summary, matchups page, bag, TM pocket. Screenshots
+were in the session scratchpad, not kept.
+
+### Known issues
+
+- Not run against a live game with a full bag or a real trainer battle on a
+  device; the trainer balls and a 100-TM bag are untested live.
+- Effectiveness ignores abilities and Tera; it says "type matchups" for that
+  reason.
+- The 640x480 summary is dense; the matchups need their own page there.
+- Session 6's RG DS bottom screen problem is still open (see above).
+
+### Next
+
+1. Owner plays the debug build on the Thor: R2 toggle, the three tabs, a
+   trainer battle (balls, SUPER/RESISTED), the bag with real items, and
+   that fast forward still sounds right.
+2. RG DS: get `adb logcat -s HeartSoul` (the `displays` line) from the
+   friend on 0.3.0 to see why the bottom screen stays on Daijisho.
+3. Then version 0.4.0 (include/port_version.h, versionCode 5) and a release
+   only after the owner plays that exact build.
+4. Later tabs from the plan: DEX and GUIDE (0.5), MAP (0.6).
+
+---
+
 ## 2026-10-04, session 6: start screen, zoomed out 4:3, RG DS bottom screen
 
 State at end of session: **v0.3.0 published as the Latest release**
