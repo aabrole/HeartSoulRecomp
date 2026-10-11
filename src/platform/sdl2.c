@@ -66,7 +66,10 @@ double fixedTimestep = 1.0 / 60.0; // 16.666667ms
 double timeScale = 1.0;
 // HNS_FAST_FORWARD=toggle: a pull of the right trigger turns fast forward on,
 // the next pull turns it off. Otherwise (hold) it runs while the trigger is in.
+// smart: as toggle, but menus run at normal speed (DualScreen_IsSlowScreen),
+// so a cursor does not race; the field and battles stay fast.
 static bool sFastForwardToggle;
+static bool sFastForwardSmart;
 struct SiiRtcInfo internalClock;
 
 static FILE *sSaveFile = NULL;
@@ -173,7 +176,7 @@ void Platform_SetTallScreen(bool32 enabled)
 //   HNS_SHOT_EVERY=N        also save a shot every N frames
 //   HNS_INPUT=120:A,200+30:DOWN   press A on frame 120, hold DOWN for 30 frames from 200
 //   HNS_STATE_DUMP=N        print the bottom-screen state JSON to stderr every N frames
-//   HNS_BAG_DUMP=1          with HNS_STATE_DUMP, print the bag JSON as well
+//   HNS_DOC_DUMP=1:0,2:0    with HNS_STATE_DUMP, print these bottom-screen documents (kind:param)
 //   HNS_TAP=2700:MOVE1,2900:RUN   bottom-screen taps: MOVE1-4, FIGHT, BAG, POKEMON, RUN
 //   HNS_WAV=path            write everything the game queues as audio to a WAV file
 //                           (32-bit float, stereo, 42048 Hz)
@@ -615,7 +618,12 @@ int main(int argc, char **argv)
     SDL_RenderClear(sdlRenderer);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     SetScaleMode(getenv("HNS_SCALE"));
-    sFastForwardToggle = getenv("HNS_FAST_FORWARD") != NULL && strcmp(getenv("HNS_FAST_FORWARD"), "toggle") == 0;
+    {
+        const char *mode = getenv("HNS_FAST_FORWARD");
+
+        sFastForwardSmart = mode != NULL && strcmp(mode, "smart") == 0;
+        sFastForwardToggle = sFastForwardSmart || (mode != NULL && strcmp(mode, "toggle") == 0);
+    }
 
     // Created at the largest geometry. Only the top-left gRenderWidth x
     // gRenderHeight is uploaded and drawn, so widescreen and the tall screen
@@ -683,7 +691,9 @@ int main(int argc, char **argv)
 
         curGameTime = SDL_GetPerformanceCounter();
         deltaTime = (double)((curGameTime - lastGameTime) / (double)SDL_GetPerformanceFrequency());
-        deltaTime *= timeScale; //apply speedup
+        //apply speedup
+        if (!(sFastForwardSmart && timeScale > 1.0 && DualScreen_IsSlowScreen()))
+            deltaTime *= timeScale;
 
         if (!paused)
         {

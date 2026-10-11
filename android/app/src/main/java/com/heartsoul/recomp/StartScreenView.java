@@ -79,6 +79,7 @@ final class StartScreenView extends View {
 
     private static final String[] PICTURE_NAMES = { "ORIGINAL", "WIDESCREEN", "ZOOMED OUT" };
     private static final String[] SCALE_NAMES = { "FIT", "PIXEL PERFECT", "STRETCH" };
+    private static final String[] FAST_FORWARD_NAMES = { "HOLD", "TOGGLE", "SMART" };
 
     private final Settings settings;
     private final int screenWidth;
@@ -196,7 +197,7 @@ final class StartScreenView extends View {
             PICTURE_NAMES[settings.picture],
             SCALE_NAMES[settings.scale],
             settings.bottomScreen ? "ON" : "OFF",
-            settings.fastForwardToggle ? "TOGGLE" : "HOLD",
+            FAST_FORWARD_NAMES[settings.fastForward],
         };
         // Labels share a size, and so do the values, so the rows line up.
         int labelRoom = (inRight - inLeft) * 45 / 100;
@@ -359,9 +360,17 @@ final class StartScreenView extends View {
                 }
                 break;
             case ROW_FAST_FORWARD:
-                first = settings.fastForwardToggle
-                        ? "R2 turns fast forward on, R2 again turns it off."
-                        : "Fast forward while R2 is held down.";
+                switch (settings.fastForward) {
+                    case Settings.FAST_FORWARD_HOLD:
+                        first = "Fast forward while R2 is held down.";
+                        break;
+                    case Settings.FAST_FORWARD_TOGGLE:
+                        first = "R2 turns fast forward on, R2 again turns it off.";
+                        break;
+                    default:
+                        first = "As TOGGLE, but menus run at normal speed.";
+                        break;
+                }
                 break;
             default:
                 first = "Changes apply when the game starts.";
@@ -438,7 +447,8 @@ final class StartScreenView extends View {
                 settings.bottomScreen = !settings.bottomScreen;
                 break;
             case ROW_FAST_FORWARD:
-                settings.fastForwardToggle = !settings.fastForwardToggle;
+                settings.fastForward = (settings.fastForward + direction + Settings.FAST_FORWARD_COUNT)
+                        % Settings.FAST_FORWARD_COUNT;
                 break;
             default:
                 return;

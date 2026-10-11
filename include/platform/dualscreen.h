@@ -91,6 +91,17 @@ struct DualScreenMon
     struct DualScreenMove moves[MAX_MON_MOVES];
 };
 
+// One of a trainer's Pokémon, as the bottom screen's FOE column shows it.
+struct DualScreenFoeMon
+{
+    u16 species;
+    u32 personality;
+    u8 level;
+    u16 hp;
+    u16 maxHp;
+    char speciesName[DS_TEXT_LENGTH];
+};
+
 struct DualScreenBattle
 {
     bool8 active;
@@ -106,6 +117,20 @@ struct DualScreenBattle
     struct DualScreenMon foe;       // name, level, HP, status and types only
     u8 foeTeamCount;  // trainer battles: the opponents' Pokémon, eggs left out
     u8 foeTeamLeft;   // of those, the ones not fainted
+    struct DualScreenFoeMon foeTeam[PARTY_SIZE]; // the first foeTeamCount of them
+};
+
+// Documents the bottom screen asks the game thread for, one at a time,
+// while a tab that shows one is open (see DualScreen_SetWantedDoc).
+enum DualScreenDoc
+{
+    DS_DOC_NONE,
+    DS_DOC_BAG,       // the bag's pockets
+    DS_DOC_GUIDE,     // wild Pokémon here, and the next boss
+    DS_DOC_DEX,       // the Pokédex list
+    DS_DOC_DEX_ENTRY, // one species in full (param: species), with its picture
+    DS_DOC_MAP,       // the region map, with its picture
+    DS_DOC_COUNT,
 };
 
 struct DualScreenSnapshot
@@ -124,6 +149,17 @@ struct DualScreenSnapshot
     struct DualScreenMon party[PARTY_SIZE];
     struct DualScreenBattle battle;
     bool8 fastForward;
+    // The trainer card.
+    u16 trainerId;
+    u8 playerGender;
+    bool8 hasPokedex;
+    bool8 nationalDex;
+    u16 dexSeen;    // national counts with the national dex, Johto counts before
+    u16 dexCaught;
+    u16 badgeMask;  // bit n: badge n + 1
+    u32 momMoney;
+    u8 stars;
+    u32 hofTime;    // first Hall of Fame entry's play time, hours << 16 | minutes << 8 | seconds
 };
 
 // Game thread only: reads live game state.
@@ -141,12 +177,21 @@ void DualScreen_HeadlessFrame(unsigned long frame);
 // for this frame. Each call uses up one frame of the queue.
 u16 DualScreen_ConsumeInjectedKeys(void);
 
+// Game thread: TRUE on screens smart fast forward runs at normal speed, the
+// menus: anything but the field and a battle's own screen, and the start
+// menu over the field.
+bool32 DualScreen_IsSlowScreen(void);
+
 // Any thread.
 int DualScreen_CopyJson(char *dest, int capacity);
-// The bag as JSON, published every DS_BAG_INTERVAL frames while wanted. Before
-// the first publish after it is wanted, an empty bag.
-void DualScreen_SetBagWanted(bool32 wanted);
-int DualScreen_CopyBagJson(char *dest, int capacity);
+// Which document the bottom screen wants (enum DualScreenDoc and its param).
+// The game thread builds it at its next frame and again every so often, and
+// publishes it with a "doc" and "param" so a reader can tell which it is.
+void DualScreen_SetWantedDoc(u32 kind, u32 param);
+int DualScreen_CopyDocJson(char *dest, int capacity);
+// The published document's picture as ARGB, if it has one. Returns the
+// number of pixels copied (0 if none or capacity is too small).
+int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height);
 // The type chart as JSON: type names and every attack-on-defence multiplier.
 // Reads constant data only.
 int DualScreen_TypeChartJson(char *dest, int capacity);

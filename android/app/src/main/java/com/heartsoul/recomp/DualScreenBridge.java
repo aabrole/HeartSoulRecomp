@@ -34,13 +34,28 @@ public final class DualScreenBridge {
      */
     public static native void nativeInjectKeys(int keys, int frames);
 
-    /**
-     * The bag as JSON. The game publishes it only while it is wanted, every
-     * half second; set it wanted while the bag is on screen.
-     */
-    public static native String nativeGetBagJson();
+    /** Documents, matching enum DualScreenDoc. */
+    public static final int DOC_NONE = 0;
+    public static final int DOC_BAG = 1;
+    public static final int DOC_GUIDE = 2;
+    public static final int DOC_DEX = 3;
+    public static final int DOC_DEX_ENTRY = 4; // param: species
+    public static final int DOC_MAP = 5;
 
-    public static native void nativeSetBagWanted(boolean wanted);
+    /**
+     * Which document the bottom screen shows. The game builds it at its next
+     * frame and keeps it fresh while it stays wanted; DOC_NONE stops that.
+     */
+    public static native void nativeSetWantedDoc(int kind, int param);
+
+    /** The last document built, as JSON with its "doc" and "param". */
+    public static native String nativeGetDocJson();
+
+    /**
+     * The last document's picture as width, height and then the ARGB
+     * pixels, or null when it has none.
+     */
+    public static native int[] nativeGetDocImage();
 
     /** The type chart as JSON (see TypeChart). */
     public static native String nativeGetTypeChartJson();

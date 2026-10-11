@@ -146,5 +146,8 @@ void SetFlyDestination(struct RegionMap* regionMap);
 extern const struct RegionMapLocation gRegionMapEntries[];
 extern const struct RegionMapInfo gRegionMapInfos[];
 const struct RegionMapLocation *GetActiveRegionMapEntries(void);
+#ifdef PORTABLE
+mapsec_u16_t RegionMap_MapSecAt(u16 x, u16 y);
+#endif
 
 #endif //GUARD_REGION_MAP_H

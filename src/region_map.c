@@ -1516,6 +1516,15 @@ enum RegionMapType GetRegionMapType(u32 mapSecId)
 #endif
 }
 
+#ifdef PORTABLE
+// The bottom screen's map (src/platform/dualscreen_bridge.c) reads the layout
+// through this: the section at cursor position x, y, or MAPSEC_NONE.
+mapsec_u16_t RegionMap_MapSecAt(u16 x, u16 y)
+{
+    return GetMapSecIdAt(x, y);
+}
+#endif
+
 static mapsec_u16_t GetMapSecIdAt(u16 x, u16 y)
 {
     if (y < MAPCURSOR_Y_MIN || y > MAPCURSOR_Y_MAX || x < MAPCURSOR_X_MIN || x > MAPCURSOR_X_MAX)

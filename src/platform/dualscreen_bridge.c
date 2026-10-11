@@ -19,6 +19,15 @@
 #include "data.h"
 #include "event_data.h"
 #include "decompress.h"
+#include "event_data.h"
+#include "mom_savings.h"
+#include "overworld.h"
+#include "pokedex.h"
+#include "randomizer.h"
+#include "rtc.h"
+#include "wild_encounter.h"
+#include "constants/pokedex.h"
+#include "constants/region_map_sections.h"
 #include "graphics.h"
 #include "item.h"
 #include "item_icon.h"
@@ -28,7 +37,9 @@
 #include "pokemon.h"
 #include "pokemon_icon.h"
 #include "region_map.h"
+#include "start_menu.h"
 #include "strings.h"
+#include "task.h"
 #include "platform/dualscreen.h"
 #include "constants/battle.h"
 #include "constants/characters.h"
@@ -39,8 +50,8 @@
 
 #define DS_JSON_CAPACITY 32768
 #define DS_PUBLISH_INTERVAL 4   // frames between snapshots
-#define DS_BAG_JSON_CAPACITY (192 * 1024) // a full bag with every description is about 66K
-#define DS_BAG_INTERVAL 30      // frames between bag snapshots while the bag is wanted
+#define DS_DOC_JSON_CAPACITY (192 * 1024) // a full bag with every description is about 66K
+#define DS_DOC_IMAGE_MAX (256 * 256)      // pixels: the region map is 256x160
 #define DS_ITEM_ICON_SIZE 24
 #define DS_ITEM_ICON_CACHE 128  // decoded item icons kept
 #define DS_ITEM_ICON_QUEUE 16
@@ -67,8 +78,12 @@ static u32 sKeyHead;
 static u32 sKeyCount;
 static u32 sRequestKind;
 static u32 sRequestIndex;
-static char sPublishedBagJson[DS_BAG_JSON_CAPACITY] = "{\"pockets\":[]}";
-static bool8 sBagWanted;
+static char sPublishedDoc[DS_DOC_JSON_CAPACITY] = "{\"doc\":0}";
+static u32 sPublishedImage[DS_DOC_IMAGE_MAX];
+static u32 sPublishedImageWidth;
+static u32 sPublishedImageHeight;
+static u32 sWantedDoc;
+static u32 sWantedParam;
 static u16 sItemIconQueue[DS_ITEM_ICON_QUEUE];
 static u32 sItemIconQueueCount;
 static struct
@@ -81,7 +96,11 @@ static u32 sItemIconNext; // the entry the next decoded icon replaces
 // Game thread only.
 static struct DualScreenSnapshot sSnapshot;
 static char sWorkJson[DS_JSON_CAPACITY];
-static char sWorkBagJson[DS_BAG_JSON_CAPACITY];
+static char sWorkDoc[DS_DOC_JSON_CAPACITY];
+static u32 sWorkImage[DS_DOC_IMAGE_MAX];
+static u32 sDocKind;     // the document last published, and its param
+static u32 sDocParam;
+static u32 sDocImageKey; // what its picture was drawn for (DocImageKey)
 static u32 sFrame;
 static bool8 sSeenOverworld;
 static u32 sTapKind;
@@ -470,13 +489,46 @@ static void FillBattle(struct DualScreenBattle *dest)
         {
             u32 species = GetMonData(&gEnemyParty[i], MON_DATA_SPECIES_OR_EGG);
 
-            if (species == SPECIES_NONE || species == SPECIES_EGG)
+            struct DualScreenFoeMon *foeMon;
+
+            if (species == SPECIES_NONE || species == SPECIES_EGG || species >= NUM_SPECIES)
                 continue;
-            dest->foeTeamCount++;
-            if (GetMonData(&gEnemyParty[i], MON_DATA_HP) != 0)
+            foeMon = &dest->foeTeam[dest->foeTeamCount++];
+            foeMon->species = species;
+            foeMon->personality = GetMonData(&gEnemyParty[i], MON_DATA_PERSONALITY);
+            foeMon->level = GetMonData(&gEnemyParty[i], MON_DATA_LEVEL);
+            foeMon->hp = GetMonData(&gEnemyParty[i], MON_DATA_HP);
+            foeMon->maxHp = GetMonData(&gEnemyParty[i], MON_DATA_MAX_HP);
+            DecodeGameString(foeMon->speciesName, sizeof(foeMon->speciesName), GetSpeciesName(species),
+                             POKEMON_NAME_LENGTH);
+            if (foeMon->hp != 0)
                 dest->foeTeamLeft++;
         }
     }
+}
+
+// What the game's trainer card shows (SetPlayerCardData in trainer_card.c).
+static void FillTrainerCard(struct DualScreenSnapshot *snapshot)
+{
+    u32 i;
+
+    snapshot->trainerId = (gSaveBlock2Ptr->playerTrainerId[1] << 8) | gSaveBlock2Ptr->playerTrainerId[0];
+    snapshot->playerGender = gSaveBlock2Ptr->playerGender;
+    snapshot->hasPokedex = FlagGet(FLAG_SYS_POKEDEX_GET);
+    snapshot->nationalDex = IsNationalPokedexEnabled();
+    snapshot->dexSeen = snapshot->nationalDex ? GetNationalPokedexCount(FLAG_GET_SEEN) : GetJohtoPokedexCount(FLAG_GET_SEEN);
+    snapshot->dexCaught = snapshot->nationalDex ? GetNationalPokedexCount(FLAG_GET_CAUGHT) : GetJohtoPokedexCount(FLAG_GET_CAUGHT);
+    for (i = 0; i < NUM_BADGES && i < 16; i++)
+    {
+        if (FlagGet(FLAG_BADGE01_GET + i))
+            snapshot->badgeMask |= 1u << i;
+    }
+    snapshot->momMoney = Mom_GetBalance();
+    // The stars, as GetHnSTrainerStars counts them.
+    snapshot->stars = (FlagGet(FLAG_IS_CHAMPION) ? 1 : 0) + (HasAllRegionalMons() ? 1 : 0)
+                    + (FlagGet(TRAINER_FLAGS_START + TRAINER_RED_HNS) ? 1 : 0)
+                    + (FlagGet(FLAG_IS_KANTO_CHAMPION) ? 1 : 0);
+    snapshot->hofTime = GetGameStat(GAME_STAT_FIRST_HOF_PLAY_TIME);
 }
 
 void DualScreen_FillSnapshot(struct DualScreenSnapshot *snapshot)
@@ -522,6 +574,7 @@ void DualScreen_FillSnapshot(struct DualScreenSnapshot *snapshot)
     }
 
     FillBattle(&snapshot->battle);
+    FillTrainerCard(snapshot);
 }
 
 // ---------------------------------------------------------------------------
@@ -663,7 +716,11 @@ int DualScreen_SnapshotToJson(const struct DualScreenSnapshot *snapshot, char *d
         JsonPut(&writer, ",\"money\":%u,\"badges\":%u,\"hours\":%u,\"minutes\":%u,\"seconds\":%u,\"map\":",
                 (unsigned)snapshot->money, snapshot->badges, snapshot->playHours, snapshot->playMinutes, snapshot->playSeconds);
         JsonPutString(&writer, snapshot->mapName);
-        JsonPut(&writer, "}");
+        JsonPut(&writer, ",\"id\":%u,\"gender\":%u,\"hasDex\":%s,\"nationalDex\":%s,\"dexSeen\":%u,\"dexCaught\":%u,"
+                "\"badgeMask\":%u,\"momMoney\":%u,\"stars\":%u,\"hofTime\":%u}",
+                snapshot->trainerId, snapshot->playerGender, snapshot->hasPokedex ? "true" : "false",
+                snapshot->nationalDex ? "true" : "false", snapshot->dexSeen, snapshot->dexCaught,
+                snapshot->badgeMask, (unsigned)snapshot->momMoney, snapshot->stars, (unsigned)snapshot->hofTime);
     }
 
     JsonPut(&writer, ",\"party\":[");
@@ -683,7 +740,21 @@ int DualScreen_SnapshotToJson(const struct DualScreenSnapshot *snapshot, char *d
                 sMenuNames[battle->menu & 3], battle->isDouble ? "true" : "false", battle->isTrainer ? "true" : "false",
                 battle->actionCursor, battle->moveCursor, battle->partyIndex);
         if (battle->isTrainer)
-            JsonPut(&writer, ",\"foeTeam\":%u,\"foeTeamLeft\":%u", battle->foeTeamCount, battle->foeTeamLeft);
+        {
+            JsonPut(&writer, ",\"foeTeam\":%u,\"foeTeamLeft\":%u,\"foeParty\":[", battle->foeTeamCount,
+                    battle->foeTeamLeft);
+            for (i = 0; i < battle->foeTeamCount && i < PARTY_SIZE; i++)
+            {
+                const struct DualScreenFoeMon *foeMon = &battle->foeTeam[i];
+
+                JsonPut(&writer, "%s{\"speciesId\":%u,\"personality\":%u,\"lv\":%u,\"hp\":%u,\"maxHp\":%u,\"species\":",
+                        i == 0 ? "" : ",", foeMon->species, (unsigned)foeMon->personality, foeMon->level,
+                        foeMon->hp, foeMon->maxHp);
+                JsonPutString(&writer, foeMon->speciesName);
+                JsonPut(&writer, "}");
+            }
+            JsonPut(&writer, "]");
+        }
         JsonPut(&writer, ",\"mon\":");
         if (battle->hasPlayerMon)
             JsonPutMon(&writer, &battle->playerMon, TRUE);
@@ -741,99 +812,16 @@ int DualScreen_CopyJson(char *dest, int capacity)
 }
 
 // ---------------------------------------------------------------------------
-// Bag
+// Smart fast forward
 // ---------------------------------------------------------------------------
 
-// The pockets in the bag screen's order, each with its items in bag order.
-static int BagToJson(char *dest, int capacity)
+bool32 DualScreen_IsSlowScreen(void)
 {
-    struct JsonWriter writer = { dest, 0, capacity, FALSE };
-    char text[256];
-    u32 pocketId, slot;
-
-    JsonPut(&writer, "{\"frame\":%u,\"pockets\":[", (unsigned)sFrame);
-    for (pocketId = 0; pocketId < POCKETS_COUNT; pocketId++)
-    {
-        struct BagPocket *pocket = &gBagPockets[pocketId];
-        bool32 first = TRUE;
-
-        DecodeGameString(text, sizeof(text), gPocketNamesStringsTable[pocketId], 20);
-        JsonPut(&writer, "%s{\"id\":%u,\"name\":", pocketId == 0 ? "" : ",", pocketId);
-        JsonPutString(&writer, text);
-        JsonPut(&writer, ",\"items\":[");
-        for (slot = 0; pocket->itemSlots != NULL && slot < pocket->capacity; slot++)
-        {
-            struct ItemSlot item = BagPocket_GetSlotData(pocket, slot);
-            enum Move move;
-
-            if (item.itemId == ITEM_NONE || item.itemId >= ITEMS_COUNT || item.quantity == 0)
-                continue;
-            JsonPut(&writer, "%s{\"id\":%u,\"qty\":%u,\"name\":", first ? "" : ",", item.itemId, item.quantity);
-            first = FALSE;
-            DecodeGameString(text, sizeof(text), GetItemName(item.itemId), ITEM_NAME_LENGTH);
-            JsonPutString(&writer, text);
-            move = pocketId == POCKET_TM_HM ? GetItemTMHMMoveId(item.itemId) : MOVE_NONE;
-            if (move != MOVE_NONE && move < MOVES_COUNT)
-            {
-                u32 type = GetMoveType(move);
-
-                DecodeGameString(text, sizeof(text), GetMoveName(move), MOVE_NAME_LENGTH);
-                JsonPut(&writer, ",\"move\":");
-                JsonPutString(&writer, text);
-                JsonPut(&writer, ",\"typeId\":%u", type < NUMBER_OF_MON_TYPES ? type : TYPE_NONE);
-            }
-            DecodeGameText(text, sizeof(text), GetItemDescription(item.itemId), 200);
-            JsonPut(&writer, ",\"desc\":");
-            JsonPutString(&writer, text);
-            JsonPut(&writer, "}");
-        }
-        JsonPut(&writer, "]}");
-    }
-    JsonPut(&writer, "]}");
-
-    if (writer.overflowed)
-    {
-        writer.length = snprintf(dest, capacity, "{\"frame\":%u,\"error\":\"overflow\",\"pockets\":[]}", (unsigned)sFrame);
-        if (writer.length >= capacity)
-            writer.length = 0;
-        dest[writer.length] = '\0';
-    }
-    return writer.length;
-}
-
-static void PublishBag(void)
-{
-    int length;
-
-    if (!sSeenOverworld || gSaveBlock2Ptr == NULL)
-        return;
-    length = BagToJson(sWorkBagJson, sizeof(sWorkBagJson));
-    pthread_mutex_lock(&sLock);
-    memcpy(sPublishedBagJson, sWorkBagJson, length + 1);
-    pthread_mutex_unlock(&sLock);
-}
-
-void DualScreen_SetBagWanted(bool32 wanted)
-{
-    pthread_mutex_lock(&sLock);
-    sBagWanted = wanted != 0;
-    pthread_mutex_unlock(&sLock);
-}
-
-int DualScreen_CopyBagJson(char *dest, int capacity)
-{
-    int length;
-
-    if (capacity <= 0)
-        return 0;
-    pthread_mutex_lock(&sLock);
-    length = strlen(sPublishedBagJson);
-    if (length > capacity - 1)
-        length = 0;
-    memcpy(dest, sPublishedBagJson, length);
-    pthread_mutex_unlock(&sLock);
-    dest[length] = '\0';
-    return length;
+    if (gMain.callback2 == CB2_Overworld)
+        return FuncIsActiveTask(Task_ShowStartMenu);
+    if (gMain.callback2 == BattleMainCB2)
+        return FALSE;
+    return TRUE;
 }
 
 // ---------------------------------------------------------------------------
@@ -1018,6 +1006,1009 @@ static void DecodeItemIcons(void)
 }
 
 // ---------------------------------------------------------------------------
+// Documents: bag, guide, Pokédex, map
+// ---------------------------------------------------------------------------
+
+// The pockets in the bag screen's order, each with its items in bag order.
+static void BagToJson(struct JsonWriter *writer)
+{
+    char text[256];
+    u32 pocketId, slot;
+
+    JsonPut(writer, ",\"pockets\":[");
+    for (pocketId = 0; pocketId < POCKETS_COUNT; pocketId++)
+    {
+        struct BagPocket *pocket = &gBagPockets[pocketId];
+        bool32 first = TRUE;
+
+        DecodeGameString(text, sizeof(text), gPocketNamesStringsTable[pocketId], 20);
+        JsonPut(writer, "%s{\"id\":%u,\"name\":", pocketId == 0 ? "" : ",", pocketId);
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"items\":[");
+        for (slot = 0; pocket->itemSlots != NULL && slot < pocket->capacity; slot++)
+        {
+            struct ItemSlot item = BagPocket_GetSlotData(pocket, slot);
+            enum Move move;
+
+            if (item.itemId == ITEM_NONE || item.itemId >= ITEMS_COUNT || item.quantity == 0)
+                continue;
+            JsonPut(writer, "%s{\"id\":%u,\"qty\":%u,\"name\":", first ? "" : ",", item.itemId, item.quantity);
+            first = FALSE;
+            DecodeGameString(text, sizeof(text), GetItemName(item.itemId), ITEM_NAME_LENGTH);
+            JsonPutString(writer, text);
+            move = pocketId == POCKET_TM_HM ? GetItemTMHMMoveId(item.itemId) : MOVE_NONE;
+            if (move != MOVE_NONE && move < MOVES_COUNT)
+            {
+                u32 type = GetMoveType(move);
+
+                DecodeGameString(text, sizeof(text), GetMoveName(move), MOVE_NAME_LENGTH);
+                JsonPut(writer, ",\"move\":");
+                JsonPutString(writer, text);
+                JsonPut(writer, ",\"typeId\":%u", type < NUMBER_OF_MON_TYPES ? type : TYPE_NONE);
+            }
+            DecodeGameText(text, sizeof(text), GetItemDescription(item.itemId), 200);
+            JsonPut(writer, ",\"desc\":");
+            JsonPutString(writer, text);
+            JsonPut(writer, "}");
+        }
+        JsonPut(writer, "]}");
+    }
+    JsonPut(writer, "]");
+}
+
+static bool32 IsSpeciesCaught(u32 species)
+{
+    return species < NUM_SPECIES && GetSetPokedexFlag(SpeciesToNationalPokedexNum(species), FLAG_GET_CAUGHT);
+}
+
+static bool32 IsSpeciesSeen(u32 species)
+{
+    return species < NUM_SPECIES && GetSetPokedexFlag(SpeciesToNationalPokedexNum(species), FLAG_GET_SEEN);
+}
+
+// --- Guide: wild Pokémon here ---
+
+// The game's chance for each slot, in percent (ChooseWildMonIndex_*).
+static const u8 sLandSlotRates[12] = {20, 20, 10, 10, 10, 10, 5, 5, 4, 4, 1, 1};
+static const u8 sWaterSlotRates[5] = {60, 30, 5, 4, 1};
+// Fishing: old rod slots 0-1, good rod 2-4, super rod 5-9.
+static const u8 sFishingSlotRates[10] = {70, 30, 60, 20, 20, 40, 40, 15, 4, 1};
+
+struct GuideMon
+{
+    u16 species;
+    u8 minLevel;
+    u8 maxLevel;
+    u8 rate;
+};
+
+// One way of meeting wild Pokémon, its species merged with their chances.
+static void GuideAreaToJson(struct JsonWriter *writer, bool32 *first, const char *name,
+                            const struct WildPokemonInfo *info, const u8 *rates, u32 firstSlot, u32 slotCount)
+{
+    struct GuideMon mons[12];
+    u32 count = 0;
+    u32 slot, i;
+    char text[DS_TEXT_LENGTH];
+
+    if (info == NULL || info->wildPokemon == NULL)
+        return;
+    for (slot = firstSlot; slot < firstSlot + slotCount; slot++)
+    {
+        const struct WildPokemon *wild = &info->wildPokemon[slot];
+
+        if (wild->species == SPECIES_NONE || wild->species >= NUM_SPECIES || !IsSpeciesEnabled(wild->species))
+            continue;
+        for (i = 0; i < count && mons[i].species != wild->species; i++)
+            ;
+        if (i == count)
+        {
+            if (count == ARRAY_COUNT(mons))
+                continue;
+            mons[count].species = wild->species;
+            mons[count].minLevel = wild->minLevel;
+            mons[count].maxLevel = wild->maxLevel;
+            mons[count].rate = 0;
+            count++;
+        }
+        mons[i].minLevel = min(mons[i].minLevel, wild->minLevel);
+        mons[i].maxLevel = max(mons[i].maxLevel, wild->maxLevel);
+        mons[i].rate += rates[slot];
+    }
+    if (count == 0)
+        return;
+
+    JsonPut(writer, "%s{\"name\":\"%s\",\"mons\":[", *first ? "" : ",", name);
+    *first = FALSE;
+    for (i = 0; i < count; i++)
+    {
+        DecodeGameString(text, sizeof(text), GetSpeciesName(mons[i].species), POKEMON_NAME_LENGTH);
+        JsonPut(writer, "%s{\"speciesId\":%u,\"species\":", i == 0 ? "" : ",", mons[i].species);
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"min\":%u,\"max\":%u,\"rate\":%u,\"seen\":%s,\"caught\":%s}",
+                mons[i].minLevel, mons[i].maxLevel, mons[i].rate,
+                IsSpeciesSeen(mons[i].species) ? "true" : "false",
+                IsSpeciesCaught(mons[i].species) ? "true" : "false");
+    }
+    JsonPut(writer, "]}");
+}
+
+static void GuideWildToJson(struct JsonWriter *writer)
+{
+    static const char *const sTimeNames[] = { "MORNING", "DAY", "EVENING", "NIGHT" };
+    u16 headerId = GetCurrentMapWildMonHeaderId();
+    const struct WildEncounterTypes *types;
+    bool32 first = TRUE;
+    u32 time;
+
+    // Randomized wild Pokémon cannot be told without drawing from the
+    // game's random numbers, which would change the game.
+    if (RandomizerFeatureEnabled(RANDOMIZE_WILD_MON))
+    {
+        JsonPut(writer, ",\"wildRandomized\":true,\"here\":[]");
+        return;
+    }
+    JsonPut(writer, ",\"here\":[");
+    if (headerId != HEADER_NONE)
+    {
+        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_LAND);
+        types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
+        GuideAreaToJson(writer, &first, "GRASS AND CAVES", types->landMonsInfo, sLandSlotRates, 0, 12);
+
+        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_WATER);
+        types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
+        GuideAreaToJson(writer, &first, "SURFING", types->waterMonsInfo, sWaterSlotRates, 0, 5);
+
+        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_ROCKS);
+        types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
+        GuideAreaToJson(writer, &first, "ROCK SMASH", types->rockSmashMonsInfo, sWaterSlotRates, 0, 5);
+
+        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_FISHING);
+        types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
+        GuideAreaToJson(writer, &first, "OLD ROD", types->fishingMonsInfo, sFishingSlotRates, 0, 2);
+        GuideAreaToJson(writer, &first, "GOOD ROD", types->fishingMonsInfo, sFishingSlotRates, 2, 3);
+        GuideAreaToJson(writer, &first, "SUPER ROD", types->fishingMonsInfo, sFishingSlotRates, 5, 5);
+    }
+    JsonPut(writer, "]");
+    time = GetTimeOfDay();
+    JsonPut(writer, ",\"time\":\"%s\"", time < ARRAY_COUNT(sTimeNames) ? sTimeNames[time] : "");
+}
+
+// --- Guide: the next boss ---
+
+struct Boss
+{
+    const char *place;
+    u16 badgeFlag;  // the badge that beating them leads to
+    u16 trainer;    // the team before any of the other two middle gyms
+    u16 trainerOne; // the middle gyms: after one of the other two
+    u16 trainerTwo; // and after both
+    u16 otherA;     // the middle gyms: the other two gyms' defeat flags
+    u16 otherB;
+};
+
+static const struct Boss sJohtoBosses[] =
+{
+    {"VIOLET CITY GYM",    FLAG_BADGE01_GET,     TRAINER_FALKNER_1_HNS},
+    {"AZALEA TOWN GYM",    FLAG_BADGE01_GET + 1, TRAINER_BUGSY_1_HNS},
+    {"GOLDENROD CITY GYM", FLAG_BADGE01_GET + 2, TRAINER_WHITNEY_1_HNS},
+    {"ECRUTEAK CITY GYM",  FLAG_BADGE01_GET + 3, TRAINER_MORTY_1_HNS},
+    {"CIANWOOD CITY GYM",  FLAG_BADGE01_GET + 4, TRAINER_CHUCK_1_HNS, TRAINER_CHUCK_1_2_HNS, TRAINER_CHUCK_1_3_HNS,
+     FLAG_DEFEATED_OLIVINE_CITY_GYM, FLAG_DEFEATED_MAHOGANY_TOWN_GYM},
+    {"OLIVINE CITY GYM",   FLAG_BADGE01_GET + 5, TRAINER_JASMINE_1_HNS, TRAINER_JASMINE_1_2_HNS, TRAINER_JASMINE_1_3_HNS,
+     FLAG_DEFEATED_CIANWOOD_GYM, FLAG_DEFEATED_MAHOGANY_TOWN_GYM},
+    {"MAHOGANY TOWN GYM",  FLAG_BADGE01_GET + 6, TRAINER_PRYCE_1_HNS, TRAINER_PRYCE_1_2_HNS, TRAINER_PRYCE_1_3_HNS,
+     FLAG_DEFEATED_CIANWOOD_GYM, FLAG_DEFEATED_OLIVINE_CITY_GYM},
+    {"BLACKTHORN CITY GYM", FLAG_BADGE01_GET + 7, TRAINER_CLAIR_1_HNS},
+};
+
+static const struct Boss sKantoBosses[] =
+{
+    {"PEWTER CITY GYM",    FLAG_BADGE01_GET + 8,  TRAINER_BROCK_HNS},
+    {"CERULEAN CITY GYM",  FLAG_BADGE01_GET + 9,  TRAINER_MISTY_HNS},
+    {"VERMILION CITY GYM", FLAG_BADGE01_GET + 10, TRAINER_LTSURGE_HNS},
+    {"CELADON CITY GYM",   FLAG_BADGE01_GET + 11, TRAINER_ERIKA_HNS},
+    {"SAFFRON CITY GYM",   FLAG_BADGE01_GET + 12, TRAINER_SABRINA_HNS},
+    {"FUCHSIA CITY GYM",   FLAG_BADGE01_GET + 13, TRAINER_JANINE_HNS},
+    {"SEAFOAM GYM",        FLAG_BADGE01_GET + 14, TRAINER_BLAINE_HNS},
+    {"VIRIDIAN CITY GYM",  FLAG_BADGE01_GET + 15, TRAINER_BLUE_HNS},
+};
+
+// The Elite Four and the champion in order, first run and rematch.
+static const u16 sLeagueFirst[] = {TRAINER_WILL_1_HNS, TRAINER_KOGA_1_HNS, TRAINER_BRUNO_1_HNS,
+                                   TRAINER_KAREN_1_HNS, TRAINER_LANCE_1_HNS};
+static const u16 sLeagueSecond[] = {TRAINER_WILL_2_HNS, TRAINER_KOGA_2_HNS, TRAINER_BRUNO_2_HNS,
+                                    TRAINER_KAREN_2_HNS, TRAINER_LANCE_2_HNS};
+
+static u16 BossTrainer(const struct Boss *boss)
+{
+    u32 beaten;
+
+    if (boss->trainerOne == 0)
+        return boss->trainer;
+    beaten = (FlagGet(boss->otherA) ? 1 : 0) + (FlagGet(boss->otherB) ? 1 : 0);
+    return beaten == 0 ? boss->trainer : beaten == 1 ? boss->trainerOne : boss->trainerTwo;
+}
+
+// The next trainer the story puts in the way, or 0 when there is none left.
+static u16 NextBoss(const char **place)
+{
+    u32 i, state;
+
+    for (i = 0; i < ARRAY_COUNT(sJohtoBosses); i++)
+    {
+        if (!FlagGet(sJohtoBosses[i].badgeFlag))
+        {
+            *place = sJohtoBosses[i].place;
+            return BossTrainer(&sJohtoBosses[i]);
+        }
+    }
+    // VAR_LEAGUE_STATE counts the League's rooms: 1 on entry, 2 after WILL...
+    state = VarGet(VAR_LEAGUE_STATE);
+    state = state > 1 ? state - 1 : 0;
+    if (state >= ARRAY_COUNT(sLeagueFirst))
+        state = ARRAY_COUNT(sLeagueFirst) - 1;
+    if (!FlagGet(FLAG_IS_CHAMPION))
+    {
+        *place = "INDIGO PLATEAU";
+        return sLeagueFirst[state];
+    }
+    for (i = 0; i < ARRAY_COUNT(sKantoBosses); i++)
+    {
+        if (!FlagGet(sKantoBosses[i].badgeFlag))
+        {
+            *place = sKantoBosses[i].place;
+            return BossTrainer(&sKantoBosses[i]);
+        }
+    }
+    if (!FlagGet(FLAG_IS_KANTO_CHAMPION))
+    {
+        *place = "INDIGO PLATEAU";
+        return sLeagueSecond[state];
+    }
+    if (!FlagGet(TRAINER_FLAGS_START + TRAINER_RED_POSTOBC_HNS))
+    {
+        *place = "MT. SILVER";
+        return TRAINER_RED_POSTOBC_HNS;
+    }
+    return 0;
+}
+
+static void GuideBossToJson(struct JsonWriter *writer)
+{
+    const char *place = "";
+    u16 trainerId = NextBoss(&place);
+    const struct Trainer *trainer;
+    const struct TrainerMon *party;
+    char text[DS_TEXT_LENGTH];
+    u32 size, i, j;
+    bool32 firstMon = TRUE;
+
+    if (trainerId == 0)
+    {
+        JsonPut(writer, ",\"boss\":null");
+        return;
+    }
+    trainer = GetTrainerStructFromId(trainerId);
+    DecodeGameString(text, sizeof(text), GetTrainerClassNameFromId(trainerId), 13);
+    JsonPut(writer, ",\"boss\":{\"class\":");
+    JsonPutString(writer, text);
+    DecodeGameString(text, sizeof(text), trainer->trainerName, TRAINER_NAME_LENGTH);
+    JsonPut(writer, ",\"name\":");
+    JsonPutString(writer, text);
+    JsonPut(writer, ",\"place\":");
+    JsonPutString(writer, place);
+
+    // A trainer can take its team from another (CreateNPCTrainerParty).
+    if (trainer->overrideTrainer)
+    {
+        const struct Trainer *source = GetTrainerStructFromId(trainer->overrideTrainer);
+
+        party = source->party;
+        size = trainer->partySize != 0 ? trainer->partySize : source->partySize;
+        if (source->poolSize != 0)
+            size = source->poolSize;
+    }
+    else
+    {
+        party = trainer->party;
+        size = trainer->poolSize != 0 ? trainer->poolSize : trainer->partySize;
+    }
+    // From a pool the game picks partySize of them; show the whole pool.
+    JsonPut(writer, ",\"pool\":%s,\"randomized\":%s,\"team\":[",
+            trainer->poolSize != 0 ? "true" : "false",
+            RandomizerFeatureEnabled(RANDOMIZE_TRAINER_MON) ? "true" : "false");
+    for (i = 0; party != NULL && i < size && i < 12; i++)
+    {
+        const struct TrainerMon *mon = &party[i];
+        bool32 firstMove = TRUE;
+
+        if (mon->species == SPECIES_NONE || mon->species >= NUM_SPECIES || !IsSpeciesEnabled(mon->species))
+            continue;
+        DecodeGameString(text, sizeof(text), GetSpeciesName(mon->species), POKEMON_NAME_LENGTH);
+        JsonPut(writer, "%s{\"speciesId\":%u,\"species\":", firstMon ? "" : ",", mon->species);
+        firstMon = FALSE;
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"lv\":%u,\"item\":", mon->lvl);
+        text[0] = '\0';
+        if (mon->heldItem != ITEM_NONE && mon->heldItem < ITEMS_COUNT)
+            DecodeGameString(text, sizeof(text), GetItemName(mon->heldItem), ITEM_NAME_LENGTH);
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"types\":[%u,%u],\"moves\":[", GetSpeciesType(mon->species, 0),
+                GetSpeciesType(mon->species, 1));
+        for (j = 0; j < MAX_MON_MOVES; j++)
+        {
+            if (mon->moves[j] == MOVE_NONE || mon->moves[j] >= MOVES_COUNT)
+                continue;
+            DecodeGameString(text, sizeof(text), GetMoveName(mon->moves[j]), MOVE_NAME_LENGTH);
+            JsonPut(writer, firstMove ? "" : ",");
+            JsonPutString(writer, text);
+            firstMove = FALSE;
+        }
+        JsonPut(writer, "]}");
+    }
+    JsonPut(writer, "]}");
+}
+
+static void GuideToJson(struct JsonWriter *writer)
+{
+    u8 mapName[64];
+    char text[DS_TEXT_LENGTH];
+
+    mapName[0] = EOS;
+    GetMapName(mapName, gMapHeader.regionMapSectionId, 0);
+    DecodeGameString(text, sizeof(text), mapName, sizeof(mapName) - 1);
+    JsonPut(writer, ",\"map\":");
+    JsonPutString(writer, text);
+    GuideWildToJson(writer);
+    GuideBossToJson(writer);
+}
+
+// --- Pokédex ---
+
+// The dex in the order the game shows it: national once the national dex is
+// on, Johto before. Names and types only for species seen.
+static void DexToJson(struct JsonWriter *writer)
+{
+    bool32 national = IsNationalPokedexEnabled();
+    u32 count = national ? NATIONAL_DEX_COUNT : JOHTO_DEX_COUNT - 1;
+    char text[DS_TEXT_LENGTH];
+    u32 i;
+    bool32 first = TRUE;
+
+    JsonPut(writer, ",\"national\":%s,\"entries\":[", national ? "true" : "false");
+    for (i = 1; i <= count; i++)
+    {
+        u32 nationalNum = national ? i : JohtoToNationalOrder(i);
+        u32 species = NationalPokedexNumToSpecies(nationalNum);
+        bool32 seen, caught;
+
+        if (species == SPECIES_NONE || species >= NUM_SPECIES || !IsSpeciesEnabled(species))
+            continue;
+        seen = GetSetPokedexFlag(nationalNum, FLAG_GET_SEEN);
+        caught = GetSetPokedexFlag(nationalNum, FLAG_GET_CAUGHT);
+        JsonPut(writer, "%s{\"n\":%u,\"s\":%u", first ? "" : ",", i, species);
+        first = FALSE;
+        if (seen || caught)
+        {
+            DecodeGameString(text, sizeof(text), GetSpeciesName(species), POKEMON_NAME_LENGTH);
+            JsonPut(writer, ",\"name\":");
+            JsonPutString(writer, text);
+            JsonPut(writer, ",\"types\":[%u,%u],\"seen\":true", GetSpeciesType(species, 0), GetSpeciesType(species, 1));
+        }
+        if (caught)
+            JsonPut(writer, ",\"caught\":true");
+        JsonPut(writer, "}");
+    }
+    JsonPut(writer, "],\"seenCount\":%u,\"caughtCount\":%u",
+            national ? GetNationalPokedexCount(FLAG_GET_SEEN) : GetJohtoPokedexCount(FLAG_GET_SEEN),
+            national ? GetNationalPokedexCount(FLAG_GET_CAUGHT) : GetJohtoPokedexCount(FLAG_GET_CAUGHT));
+}
+
+static const char *TimeOfDayName(u32 time)
+{
+    static const char *const sNames[] = { "MORNING", "DAY", "EVENING", "NIGHT" };
+
+    return time < ARRAY_COUNT(sNames) ? sNames[time] : "";
+}
+
+// How an evolution happens, in a few words: "LV 16", "FIRE STONE",
+// "TRADE", with the first extra condition ("LV UP + FRIENDSHIP").
+static void EvolutionToText(char *dest, int capacity, const struct Evolution *evolution)
+{
+    char item[DS_TEXT_LENGTH];
+    int length;
+
+    switch (evolution->method)
+    {
+    case EVO_LEVEL:
+        if (evolution->param > 1)
+            length = snprintf(dest, capacity, "LV %u", evolution->param);
+        else
+            length = snprintf(dest, capacity, "LEVEL UP");
+        break;
+    case EVO_LEVEL_BATTLE_ONLY:
+        length = snprintf(dest, capacity, "LV %u IN BATTLE", evolution->param);
+        break;
+    case EVO_TRADE:
+        length = snprintf(dest, capacity, "TRADE");
+        break;
+    case EVO_ITEM:
+        item[0] = '\0';
+        if (evolution->param < ITEMS_COUNT)
+            DecodeGameString(item, sizeof(item), GetItemName(evolution->param), ITEM_NAME_LENGTH);
+        length = snprintf(dest, capacity, "%s", item);
+        break;
+    default:
+        length = snprintf(dest, capacity, "SPECIAL");
+        break;
+    }
+    if (length < 0 || length >= capacity || evolution->params == NULL
+     || evolution->params[0].condition == CONDITIONS_END)
+        return;
+
+    switch (evolution->params[0].condition)
+    {
+    case IF_MIN_FRIENDSHIP:
+        snprintf(dest + length, capacity - length, " + FRIENDSHIP");
+        break;
+    case IF_TIME:
+        snprintf(dest + length, capacity - length, " + %s", TimeOfDayName(evolution->params[0].arg1));
+        break;
+    case IF_NOT_TIME:
+        snprintf(dest + length, capacity - length, " + NOT %s", TimeOfDayName(evolution->params[0].arg1));
+        break;
+    case IF_GENDER:
+        snprintf(dest + length, capacity - length, " + %s", evolution->params[0].arg1 == MON_MALE ? "♂" : "♀");
+        break;
+    case IF_HOLD_ITEM:
+        item[0] = '\0';
+        if (evolution->params[0].arg1 < ITEMS_COUNT)
+            DecodeGameString(item, sizeof(item), GetItemName(evolution->params[0].arg1), ITEM_NAME_LENGTH);
+        snprintf(dest + length, capacity - length, " + HOLD %s", item);
+        break;
+    case IF_KNOWS_MOVE:
+        item[0] = '\0';
+        if (evolution->params[0].arg1 < MOVES_COUNT)
+            DecodeGameString(item, sizeof(item), GetMoveName(evolution->params[0].arg1), MOVE_NAME_LENGTH);
+        snprintf(dest + length, capacity - length, " + KNOWS %s", item);
+        break;
+    case IF_ATK_GT_DEF:
+        snprintf(dest + length, capacity - length, " + ATK > DEF");
+        break;
+    case IF_ATK_EQ_DEF:
+        snprintf(dest + length, capacity - length, " + ATK = DEF");
+        break;
+    case IF_ATK_LT_DEF:
+        snprintf(dest + length, capacity - length, " + ATK < DEF");
+        break;
+    default:
+        snprintf(dest + length, capacity - length, " + SPECIAL");
+        break;
+    }
+}
+
+static void JsonPutSpeciesRef(struct JsonWriter *writer, u32 species)
+{
+    char text[DS_TEXT_LENGTH];
+
+    DecodeGameString(text, sizeof(text), GetSpeciesName(species), POKEMON_NAME_LENGTH);
+    JsonPut(writer, "\"speciesId\":%u,\"species\":", species);
+    JsonPutString(writer, text);
+}
+
+// What it evolves from (searched for) and into.
+static void DexEvolutionsToJson(struct JsonWriter *writer, u32 species)
+{
+    char text[DS_TEXT_LENGTH];
+    const struct Evolution *evolutions;
+    bool32 first = TRUE;
+    u32 other, i;
+
+    JsonPut(writer, ",\"from\":[");
+    for (other = 1; other < NUM_SPECIES; other++)
+    {
+        // The game asserts on a disabled species.
+        if (!IsSpeciesEnabled(other))
+            continue;
+        evolutions = GetSpeciesEvolutions(other);
+        for (i = 0; evolutions != NULL && evolutions[i].method != EVOLUTIONS_END && i < 16; i++)
+        {
+            if (evolutions[i].targetSpecies != species || evolutions[i].method == EVO_NONE
+             || evolutions[i].method == EVO_SPLIT_FROM_EVO)
+                continue;
+            EvolutionToText(text, sizeof(text), &evolutions[i]);
+            JsonPut(writer, first ? "{" : ",{");
+            JsonPutSpeciesRef(writer, other);
+            JsonPut(writer, ",\"how\":");
+            JsonPutString(writer, text);
+            JsonPut(writer, "}");
+            first = FALSE;
+        }
+    }
+    JsonPut(writer, "],\"into\":[");
+    first = TRUE;
+    evolutions = GetSpeciesEvolutions(species);
+    for (i = 0; evolutions != NULL && evolutions[i].method != EVOLUTIONS_END && i < 16; i++)
+    {
+        u32 target = evolutions[i].targetSpecies;
+
+        if (target == SPECIES_NONE || target >= NUM_SPECIES || !IsSpeciesEnabled(target) || evolutions[i].method == EVO_NONE
+         || evolutions[i].method == EVO_SPLIT_FROM_EVO)
+            continue;
+        EvolutionToText(text, sizeof(text), &evolutions[i]);
+        JsonPut(writer, first ? "{" : ",{");
+        JsonPutSpeciesRef(writer, target);
+        JsonPut(writer, ",\"how\":");
+        JsonPutString(writer, text);
+        JsonPut(writer, "}");
+        first = FALSE;
+    }
+    JsonPut(writer, "]");
+}
+
+// Every place and way it is met in the wild, merged by place and way.
+static void DexWhereToJson(struct JsonWriter *writer, u32 species)
+{
+    static const char *const sAreaNames[] = { "GRASS", "SURF", "ROCK SMASH", "FISHING" };
+    struct { u16 mapSec; u8 area; u8 minLevel; u8 maxLevel; } places[32];
+    u32 count = 0;
+    u32 header, time, area, slot, i;
+    u8 mapName[64];
+    char text[DS_TEXT_LENGTH];
+
+    if (RandomizerFeatureEnabled(RANDOMIZE_WILD_MON))
+    {
+        JsonPut(writer, ",\"where\":null");
+        return;
+    }
+    for (header = 0; gWildMonHeaders[header].mapGroup != MAP_GROUP(MAP_UNDEFINED); header++)
+    {
+        const struct MapHeader *mapHeader = Overworld_GetMapHeaderByGroupAndId(gWildMonHeaders[header].mapGroup,
+                                                                              gWildMonHeaders[header].mapNum);
+        u16 mapSec = mapHeader != NULL ? mapHeader->regionMapSectionId : MAPSEC_NONE;
+
+        for (time = 0; time < TIMES_OF_DAY_COUNT; time++)
+        {
+            const struct WildEncounterTypes *types = &gWildMonHeaders[header].encounterTypes[time];
+            const struct WildPokemonInfo *infos[] = { types->landMonsInfo, types->waterMonsInfo,
+                                                      types->rockSmashMonsInfo, types->fishingMonsInfo };
+            static const u8 sSlots[] = { 12, 5, 5, 10 };
+
+            for (area = 0; area < ARRAY_COUNT(infos); area++)
+            {
+                if (infos[area] == NULL || infos[area]->wildPokemon == NULL)
+                    continue;
+                for (slot = 0; slot < sSlots[area]; slot++)
+                {
+                    const struct WildPokemon *wild = &infos[area]->wildPokemon[slot];
+
+                    if (wild->species != species)
+                        continue;
+                    for (i = 0; i < count && !(places[i].mapSec == mapSec && places[i].area == area); i++)
+                        ;
+                    if (i == count)
+                    {
+                        if (count == ARRAY_COUNT(places))
+                            continue;
+                        places[count].mapSec = mapSec;
+                        places[count].area = area;
+                        places[count].minLevel = wild->minLevel;
+                        places[count].maxLevel = wild->maxLevel;
+                        count++;
+                    }
+                    places[i].minLevel = min(places[i].minLevel, wild->minLevel);
+                    places[i].maxLevel = max(places[i].maxLevel, wild->maxLevel);
+                }
+            }
+        }
+    }
+
+    JsonPut(writer, ",\"where\":[");
+    for (i = 0; i < count; i++)
+    {
+        mapName[0] = EOS;
+        if (places[i].mapSec < MAPSEC_NONE)
+            GetMapName(mapName, places[i].mapSec, 0);
+        DecodeGameString(text, sizeof(text), mapName, sizeof(mapName) - 1);
+        JsonPut(writer, "%s{\"place\":", i == 0 ? "" : ",");
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"how\":\"%s\",\"min\":%u,\"max\":%u}", sAreaNames[places[i].area],
+                places[i].minLevel, places[i].maxLevel);
+    }
+    JsonPut(writer, "]");
+}
+
+static void DexEntryToJson(struct JsonWriter *writer, u32 species)
+{
+    const struct SpeciesInfo *info;
+    const struct LevelUpMove *learnset;
+    char text[512];
+    u32 i, nationalNum;
+    bool32 first;
+
+    if (species == SPECIES_NONE || species >= NUM_SPECIES || !IsSpeciesEnabled(species))
+    {
+        JsonPut(writer, ",\"species\":null");
+        return;
+    }
+    info = &gSpeciesInfo[species];
+    nationalNum = SpeciesToNationalPokedexNum(species);
+    JsonPut(writer, ",");
+    JsonPutSpeciesRef(writer, species);
+    JsonPut(writer, ",\"national\":%u,\"johto\":%u,\"seen\":%s,\"caught\":%s",
+            nationalNum, SpeciesToJohtoPokedexNum(species),
+            GetSetPokedexFlag(nationalNum, FLAG_GET_SEEN) ? "true" : "false",
+            GetSetPokedexFlag(nationalNum, FLAG_GET_CAUGHT) ? "true" : "false");
+    DecodeGameString(text, sizeof(text), GetSpeciesCategory(species), 13);
+    JsonPut(writer, ",\"category\":");
+    JsonPutString(writer, text);
+    JsonPut(writer, ",\"height\":%u,\"weight\":%u", (unsigned)GetSpeciesHeight(species), (unsigned)GetSpeciesWeight(species));
+    DecodeGameText(text, sizeof(text), GetSpeciesPokedexDescription(species), 400);
+    JsonPut(writer, ",\"text\":");
+    JsonPutString(writer, text);
+    JsonPut(writer, ",\"types\":[%u,%u],\"base\":[%u,%u,%u,%u,%u,%u]",
+            GetSpeciesType(species, 0), GetSpeciesType(species, 1),
+            info->baseHP, info->baseAttack, info->baseDefense, info->baseSpAttack, info->baseSpDefense, info->baseSpeed);
+
+    JsonPut(writer, ",\"abilities\":[");
+    first = TRUE;
+    for (i = 0; i < NUM_ABILITY_SLOTS; i++)
+    {
+        u32 ability = GetSpeciesAbility(species, i);
+
+        if (ability == ABILITY_NONE || ability >= ABILITIES_COUNT)
+            continue;
+        DecodeGameString(text, sizeof(text), gAbilitiesInfo[ability].name, ABILITY_NAME_LENGTH);
+        JsonPut(writer, first ? "{\"name\":" : ",{\"name\":");
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"hidden\":%s}", i == NUM_ABILITY_SLOTS - 1 ? "true" : "false");
+        first = FALSE;
+    }
+    JsonPut(writer, "]");
+
+    DexEvolutionsToJson(writer, species);
+    DexWhereToJson(writer, species);
+
+    JsonPut(writer, ",\"learnset\":[");
+    first = TRUE;
+    learnset = GetSpeciesLevelUpLearnset(species);
+    for (i = 0; learnset != NULL && learnset[i].move != LEVEL_UP_MOVE_END && i < 64; i++)
+    {
+        u32 move = learnset[i].move;
+
+        if (move == MOVE_NONE || move >= MOVES_COUNT)
+            continue;
+        DecodeGameString(text, sizeof(text), GetMoveName(move), MOVE_NAME_LENGTH);
+        JsonPut(writer, "%s{\"lv\":%u,\"move\":", first ? "" : ",", learnset[i].level);
+        first = FALSE;
+        JsonPutString(writer, text);
+        JsonPut(writer, ",\"typeId\":%u}", GetMoveType(move));
+    }
+    JsonPut(writer, "]");
+}
+
+// The species' front picture, first frame, 64x64.
+static bool32 DexEntryImage(u32 species, u32 *argb, u32 *width, u32 *height)
+{
+    static u8 sPic[MON_PIC_SIZE * 4];
+
+    if (species == SPECIES_NONE || species >= NUM_SPECIES || !IsSpeciesEnabled(species)
+     || gSpeciesInfo[species].frontPic == NULL
+     || gSpeciesInfo[species].palette == NULL)
+        return FALSE;
+    LoadSpecialPokePic(sPic, species, 0, TRUE);
+    TilesToArgb(sPic, gSpeciesInfo[species].palette, 8, 8, argb);
+    *width = 64;
+    *height = 64;
+    return TRUE;
+}
+
+// --- Region map ---
+
+#define DS_MAP_COLUMNS 28  // MAP_WIDTH in src/region_map.c
+#define DS_MAP_ROWS 15     // MAP_HEIGHT
+#define DS_MAP_LEFT 1      // MAPCURSOR_X_MIN: the grid's first column, in tiles
+#define DS_MAP_TOP 2       // MAPCURSOR_Y_MIN
+#define DS_MAP_TILES_WIDE 32
+#define DS_MAP_TILES_HIGH 20
+
+static u32 RegionMapType(void)
+{
+    return GetRegionMapType(gMapHeader.regionMapSectionId);
+}
+
+// Where the player is on the grid, as region_map.c's
+// InitMapBasedOnPlayerLocation works it out, simplified: the section of the
+// map they are on, or for one off the map (an indoor or dungeon map) the
+// section of the map they would escape to; scaled by their place in it.
+static void MapPlayerPosition(u32 *column, u32 *row, u16 *playerMapSec)
+{
+    u16 mapSec = gMapHeader.regionMapSectionId;
+    u32 x0 = DS_MAP_COLUMNS, y0 = DS_MAP_ROWS, x1 = 0, y1 = 0;
+    u32 x, y;
+    bool32 found = FALSE;
+    const struct MapLayout *layout = gMapHeader.mapLayout;
+    s32 posX = gSaveBlock1Ptr->pos.x;
+    s32 posY = gSaveBlock1Ptr->pos.y;
+
+    for (y = 0; y < DS_MAP_ROWS && !found; y++)
+        for (x = 0; x < DS_MAP_COLUMNS && !found; x++)
+            found = RegionMap_MapSecAt(x + DS_MAP_LEFT, y + DS_MAP_TOP) == mapSec;
+    if (!found)
+    {
+        const struct MapHeader *escape = Overworld_GetMapHeaderByGroupAndId(gSaveBlock1Ptr->escapeWarp.mapGroup,
+                                                                           gSaveBlock1Ptr->escapeWarp.mapNum);
+
+        if (escape != NULL)
+        {
+            mapSec = escape->regionMapSectionId;
+            layout = escape->mapLayout;
+            posX = gSaveBlock1Ptr->escapeWarp.x;
+            posY = gSaveBlock1Ptr->escapeWarp.y;
+        }
+    }
+    *playerMapSec = mapSec;
+
+    for (y = 0; y < DS_MAP_ROWS; y++)
+    {
+        for (x = 0; x < DS_MAP_COLUMNS; x++)
+        {
+            if (RegionMap_MapSecAt(x + DS_MAP_LEFT, y + DS_MAP_TOP) != mapSec)
+                continue;
+            x0 = min(x0, x);
+            y0 = min(y0, y);
+            x1 = max(x1, x);
+            y1 = max(y1, y);
+        }
+    }
+    if (x0 > x1)
+    {
+        *column = DS_MAP_COLUMNS;
+        *row = DS_MAP_ROWS;
+        return;
+    }
+    *column = x0;
+    *row = y0;
+    if (layout != NULL && layout->width > 0 && layout->height > 0)
+    {
+        if (posX > 0)
+            *column += min((u32)posX * (x1 - x0 + 1) / layout->width, x1 - x0);
+        if (posY > 0)
+            *row += min((u32)posY * (y1 - y0 + 1) / layout->height, y1 - y0);
+    }
+}
+
+// The grid of section ids (rows of columns), the names of the sections on
+// it, and where the player is.
+static void MapToJson(struct JsonWriter *writer)
+{
+    static bool8 sListed[MAPSEC_NONE + 1];
+    u8 mapName[64];
+    char text[DS_TEXT_LENGTH];
+    u32 x, y, column, row;
+    u16 playerMapSec;
+    bool32 first = TRUE;
+
+    MapPlayerPosition(&column, &row, &playerMapSec);
+    JsonPut(writer, ",\"region\":%u,\"columns\":%u,\"rows\":%u,\"left\":%u,\"top\":%u,\"player\":[%u,%u]",
+            RegionMapType(), DS_MAP_COLUMNS, DS_MAP_ROWS, DS_MAP_LEFT, DS_MAP_TOP, column, row);
+    JsonPut(writer, ",\"grid\":[");
+    for (y = 0; y < DS_MAP_ROWS; y++)
+    {
+        for (x = 0; x < DS_MAP_COLUMNS; x++)
+            JsonPut(writer, "%s%u", y == 0 && x == 0 ? "" : ",", RegionMap_MapSecAt(x + DS_MAP_LEFT, y + DS_MAP_TOP));
+    }
+    JsonPut(writer, "],\"names\":{");
+    memset(sListed, 0, sizeof(sListed));
+    for (y = 0; y < DS_MAP_ROWS; y++)
+    {
+        for (x = 0; x < DS_MAP_COLUMNS; x++)
+        {
+            u32 mapSec = RegionMap_MapSecAt(x + DS_MAP_LEFT, y + DS_MAP_TOP);
+
+            if (mapSec >= MAPSEC_NONE || sListed[mapSec])
+                continue;
+            sListed[mapSec] = TRUE;
+            mapName[0] = EOS;
+            GetMapName(mapName, mapSec, 0);
+            DecodeGameString(text, sizeof(text), mapName, sizeof(mapName) - 1);
+            JsonPut(writer, "%s\"%u\":", first ? "" : ",", mapSec);
+            JsonPutString(writer, text);
+            first = FALSE;
+        }
+    }
+    JsonPut(writer, "}");
+}
+
+// The region map as the map screen draws it: an 8bpp affine background whose
+// pixel values index the BG palette from colour 112 (BG_PLTT_ID(7)).
+static bool32 MapImage(u32 *argb, u32 *width, u32 *height)
+{
+    static u8 sTiles[256 * 64];
+    static u8 sTilemap[64 * 64];
+    const struct RegionMapInfo *info = &gRegionMapInfos[RegionMapType()];
+    u32 x, y;
+
+    if (info->regionMapGfx == NULL || info->regionMapTilemap == NULL || info->regionMapPalette == NULL)
+        return FALSE;
+    DecompressDataWithHeaderWram(info->regionMapGfx, sTiles);
+    DecompressDataWithHeaderWram(info->regionMapTilemap, sTilemap);
+    for (y = 0; y < DS_MAP_TILES_HIGH * 8; y++)
+    {
+        for (x = 0; x < DS_MAP_TILES_WIDE * 8; x++)
+        {
+            u8 tile = sTilemap[(y / 8) * 64 + (x / 8)];
+            u8 value = sTiles[tile * 64 + (y % 8) * 8 + (x % 8)];
+
+            argb[y * DS_MAP_TILES_WIDE * 8 + x] = value >= 112 && value < 112 + 32
+                                                 ? Rgb555ToArgb(info->regionMapPalette[value - 112]) : 0xFF000000;
+        }
+    }
+    *width = DS_MAP_TILES_WIDE * 8;
+    *height = DS_MAP_TILES_HIGH * 8;
+    return TRUE;
+}
+
+// What decides a document's picture: it is drawn again only when this changes.
+static u32 DocImageKey(u32 kind, u32 param)
+{
+    if (kind == DS_DOC_MAP)
+        return (kind << 24) | RegionMapType();
+    return (kind << 24) | (param & 0xFFFFFF);
+}
+
+// --- Publishing ---
+
+static u32 DocInterval(u32 kind)
+{
+    switch (kind)
+    {
+    case DS_DOC_BAG:       return 30;
+    case DS_DOC_DEX_ENTRY: return 240;
+    default:               return 60;
+    }
+}
+
+// Builds the document's JSON body after its header. Returns FALSE for a
+// kind it does not know.
+static bool32 BuildDoc(struct JsonWriter *writer, u32 kind, u32 param)
+{
+    switch (kind)
+    {
+    case DS_DOC_BAG:
+        BagToJson(writer);
+        return TRUE;
+    case DS_DOC_GUIDE:
+        GuideToJson(writer);
+        return TRUE;
+    case DS_DOC_DEX:
+        DexToJson(writer);
+        return TRUE;
+    case DS_DOC_DEX_ENTRY:
+        DexEntryToJson(writer, param);
+        return TRUE;
+    case DS_DOC_MAP:
+        MapToJson(writer);
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
+// Draws the document's picture into sWorkImage. Returns FALSE if it has none.
+static bool32 BuildDocImage(u32 kind, u32 param, u32 *width, u32 *height)
+{
+    switch (kind)
+    {
+    case DS_DOC_DEX_ENTRY:
+        return DexEntryImage(param, sWorkImage, width, height);
+    case DS_DOC_MAP:
+        return MapImage(sWorkImage, width, height);
+    default:
+        return FALSE;
+    }
+}
+
+static void PublishDoc(u32 kind, u32 param, bool32 isNew)
+{
+    struct JsonWriter writer = { sWorkDoc, 0, sizeof(sWorkDoc), FALSE };
+    u32 width = 0, height = 0;
+    u32 imageKey = DocImageKey(kind, param);
+    bool32 newImage = isNew || imageKey != sDocImageKey;
+    bool32 hasImage = FALSE;
+
+    JsonPut(&writer, "{\"doc\":%u,\"param\":%u,\"frame\":%u", kind, param, (unsigned)sFrame);
+    if (!BuildDoc(&writer, kind, param))
+        return;
+    JsonPut(&writer, "}");
+    if (writer.overflowed)
+    {
+        writer.length = snprintf(sWorkDoc, sizeof(sWorkDoc), "{\"doc\":%u,\"param\":%u,\"frame\":%u,\"error\":\"overflow\"}",
+                                 kind, param, (unsigned)sFrame);
+        if (writer.length >= (int)sizeof(sWorkDoc))
+            writer.length = 0;
+        sWorkDoc[writer.length] = '\0';
+    }
+    if (newImage)
+    {
+        hasImage = BuildDocImage(kind, param, &width, &height) && width * height <= DS_DOC_IMAGE_MAX;
+        sDocImageKey = imageKey;
+    }
+
+    pthread_mutex_lock(&sLock);
+    memcpy(sPublishedDoc, sWorkDoc, writer.length + 1);
+    if (newImage)
+    {
+        sPublishedImageWidth = hasImage ? width : 0;
+        sPublishedImageHeight = hasImage ? height : 0;
+        if (hasImage)
+            memcpy(sPublishedImage, sWorkImage, width * height * sizeof(u32));
+    }
+    pthread_mutex_unlock(&sLock);
+}
+
+static void UpdateDoc(void)
+{
+    u32 kind, param;
+    bool32 isNew;
+
+    pthread_mutex_lock(&sLock);
+    kind = sWantedDoc;
+    param = sWantedParam;
+    pthread_mutex_unlock(&sLock);
+    if (kind == DS_DOC_NONE || !sSeenOverworld || gSaveBlock1Ptr == NULL || gSaveBlock2Ptr == NULL)
+        return;
+    isNew = kind != sDocKind || param != sDocParam;
+    if (isNew || sFrame % DocInterval(kind) == 0)
+    {
+        sDocKind = kind;
+        sDocParam = param;
+        PublishDoc(kind, param, isNew);
+    }
+}
+
+void DualScreen_SetWantedDoc(u32 kind, u32 param)
+{
+    pthread_mutex_lock(&sLock);
+    sWantedDoc = kind < DS_DOC_COUNT ? kind : DS_DOC_NONE;
+    sWantedParam = param;
+    pthread_mutex_unlock(&sLock);
+}
+
+int DualScreen_CopyDocJson(char *dest, int capacity)
+{
+    int length;
+
+    if (capacity <= 0)
+        return 0;
+    pthread_mutex_lock(&sLock);
+    length = strlen(sPublishedDoc);
+    if (length > capacity - 1)
+        length = 0;
+    memcpy(dest, sPublishedDoc, length);
+    pthread_mutex_unlock(&sLock);
+    dest[length] = '\0';
+    return length;
+}
+
+int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height)
+{
+    int count;
+
+    pthread_mutex_lock(&sLock);
+    count = sPublishedImageWidth * sPublishedImageHeight;
+    if (count > capacity)
+        count = 0;
+    *width = count > 0 ? sPublishedImageWidth : 0;
+    *height = count > 0 ? sPublishedImageHeight : 0;
+    if (count > 0)
+        memcpy(argb, sPublishedImage, count * sizeof(u32));
+    pthread_mutex_unlock(&sLock);
+    return count;
+}
+
+// ---------------------------------------------------------------------------
 // Injected buttons
 // ---------------------------------------------------------------------------
 
@@ -1193,17 +2184,11 @@ static void DriveTap(void)
 
 void DualScreen_FrameHook(void)
 {
-    bool32 bagWanted;
-
     sFrame++;
     DriveTap();
     if (sFrame % DS_PUBLISH_INTERVAL == 0)
         PublishSnapshot();
-    pthread_mutex_lock(&sLock);
-    bagWanted = sBagWanted;
-    pthread_mutex_unlock(&sLock);
-    if (bagWanted && sFrame % DS_BAG_INTERVAL == 0)
-        PublishBag();
+    UpdateDoc();
     DecodeItemIcons();
 }
 
@@ -1258,10 +2243,44 @@ void DualScreen_HeadlessFrame(unsigned long frame)
     {
         PublishSnapshot();
         fprintf(stderr, "state %lu %s\n", frame, sPublishedJson);
-        if (getenv("HNS_BAG_DUMP") != NULL)
+        // HNS_DOC_DUMP=1:0,5:0,4:155 prints those documents (kind:param).
+        if (getenv("HNS_DOC_DUMP") != NULL)
         {
-            PublishBag();
-            fprintf(stderr, "bag %lu %s\n", frame, sPublishedBagJson);
+            const char *list = getenv("HNS_DOC_DUMP");
+
+            while (*list != '\0')
+            {
+                char *end;
+                u32 kind = strtoul(list, &end, 10);
+                u32 param = *end == ':' ? strtoul(end + 1, &end, 10) : 0;
+
+                PublishDoc(kind, param, TRUE);
+                fprintf(stderr, "doc %lu %s\n", frame, sPublishedDoc);
+                if (sPublishedImageWidth != 0)
+                {
+                    // The picture as doc_KIND_PARAM.ppm next to the shots.
+                    char name[64];
+                    FILE *file;
+                    u32 i;
+
+                    snprintf(name, sizeof(name), "doc_%u_%u.ppm", kind, param);
+                    file = fopen(name, "wb");
+                    if (file != NULL)
+                    {
+                        fprintf(file, "P6\n%u %u\n255\n", sPublishedImageWidth, sPublishedImageHeight);
+                        for (i = 0; i < sPublishedImageWidth * sPublishedImageHeight; i++)
+                        {
+                            u8 rgb[3] = { sPublishedImage[i] >> 16, sPublishedImage[i] >> 8, sPublishedImage[i] };
+
+                            fwrite(rgb, 1, 3, file);
+                        }
+                        fclose(file);
+                    }
+                }
+                list = *end == ',' ? end + 1 : end;
+                if (*end != ',')
+                    break;
+            }
         }
         if (frame == sDumpEvery)
         {
@@ -1297,20 +2316,40 @@ JNIEXPORT void JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeTap(JNIE
         DualScreen_RequestTap(kind, index);
 }
 
-JNIEXPORT jstring JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetBagJson(JNIEnv *env, jclass clazz)
-{
-    static char sJniBagJson[DS_BAG_JSON_CAPACITY]; // only the UI thread calls this
-
-    (void)clazz;
-    DualScreen_CopyBagJson(sJniBagJson, sizeof(sJniBagJson));
-    return (*env)->NewStringUTF(env, sJniBagJson);
-}
-
-JNIEXPORT void JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeSetBagWanted(JNIEnv *env, jclass clazz, jboolean wanted)
+JNIEXPORT void JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeSetWantedDoc(JNIEnv *env, jclass clazz, jint kind, jint param)
 {
     (void)env;
     (void)clazz;
-    DualScreen_SetBagWanted(wanted != JNI_FALSE);
+    DualScreen_SetWantedDoc(kind >= 0 ? (u32)kind : DS_DOC_NONE, (u32)param);
+}
+
+JNIEXPORT jstring JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetDocJson(JNIEnv *env, jclass clazz)
+{
+    static char sJniDoc[DS_DOC_JSON_CAPACITY]; // only the UI thread calls this
+
+    (void)clazz;
+    DualScreen_CopyDocJson(sJniDoc, sizeof(sJniDoc));
+    return (*env)->NewStringUTF(env, sJniDoc);
+}
+
+// The picture as width, height, then the ARGB pixels; null if there is none.
+JNIEXPORT jintArray JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetDocImage(JNIEnv *env, jclass clazz)
+{
+    static u32 sJniImage[2 + DS_DOC_IMAGE_MAX]; // only the UI thread calls this
+    u32 width, height;
+    int count;
+    jintArray result;
+
+    (void)clazz;
+    count = DualScreen_CopyDocImage(sJniImage + 2, DS_DOC_IMAGE_MAX, &width, &height);
+    if (count == 0)
+        return NULL;
+    sJniImage[0] = width;
+    sJniImage[1] = height;
+    result = (*env)->NewIntArray(env, count + 2);
+    if (result != NULL)
+        (*env)->SetIntArrayRegion(env, result, 0, count + 2, (const jint *)sJniImage);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetTypeChartJson(JNIEnv *env, jclass clazz)

@@ -32,13 +32,19 @@ final class Settings {
     private static final String KEY_PICTURE = "picture";
     private static final String KEY_SCALE = "scale";
     private static final String KEY_BOTTOM_SCREEN = "bottom_screen";
-    private static final String KEY_FAST_FORWARD_TOGGLE = "fast_forward_toggle";
+    private static final String KEY_FAST_FORWARD_TOGGLE = "fast_forward_toggle"; // 0.4 test builds
+    private static final String KEY_FAST_FORWARD = "fast_forward";
+
+    /** What R2 does. */
+    static final int FAST_FORWARD_HOLD = 0;   // fast while held
+    static final int FAST_FORWARD_TOGGLE = 1; // a pull turns it on, the next off
+    static final int FAST_FORWARD_SMART = 2;  // as TOGGLE, but menus run at normal speed
+    static final int FAST_FORWARD_COUNT = 3;
 
     int picture;
     int scale;
     boolean bottomScreen;
-    /** The fast forward button turns it on and off, instead of working while held. */
-    boolean fastForwardToggle;
+    int fastForward;
 
     /** Game pixels across and down for a picture choice. */
     static int frameWidth(int picture) {
@@ -69,7 +75,9 @@ final class Settings {
                 PICTURE_COUNT, PICTURE_WIDESCREEN);
         settings.scale = clamp(prefs.getInt(KEY_SCALE, SCALE_FIT), SCALE_COUNT, SCALE_FIT);
         settings.bottomScreen = prefs.getBoolean(KEY_BOTTOM_SCREEN, true);
-        settings.fastForwardToggle = prefs.getBoolean(KEY_FAST_FORWARD_TOGGLE, true);
+        int oldDefault = prefs.getBoolean(KEY_FAST_FORWARD_TOGGLE, true) ? FAST_FORWARD_TOGGLE : FAST_FORWARD_HOLD;
+        settings.fastForward = clamp(prefs.getInt(KEY_FAST_FORWARD, oldDefault), FAST_FORWARD_COUNT,
+                FAST_FORWARD_TOGGLE);
         return settings;
     }
 
@@ -78,7 +86,7 @@ final class Settings {
                 .putInt(KEY_PICTURE, picture)
                 .putInt(KEY_SCALE, scale)
                 .putBoolean(KEY_BOTTOM_SCREEN, bottomScreen)
-                .putBoolean(KEY_FAST_FORWARD_TOGGLE, fastForwardToggle)
+                .putInt(KEY_FAST_FORWARD, fastForward)
                 .apply();
     }
 
@@ -87,7 +95,8 @@ final class Settings {
         setenv("HNS_WIDESCREEN", picture == PICTURE_ORIGINAL ? "0" : "1");
         setenv("HNS_TALL", picture == PICTURE_ZOOMED_OUT ? "1" : "0");
         setenv("HNS_SCALE", scale == SCALE_INTEGER ? "integer" : scale == SCALE_STRETCH ? "stretch" : "fit");
-        setenv("HNS_FAST_FORWARD", fastForwardToggle ? "toggle" : "hold");
+        setenv("HNS_FAST_FORWARD", fastForward == FAST_FORWARD_SMART ? "smart"
+                : fastForward == FAST_FORWARD_TOGGLE ? "toggle" : "hold");
     }
 
     private static void setenv(String name, String value) {

@@ -78,6 +78,17 @@ final class BottomScreenState {
     int badges;
     int hours;
     int minutes;
+    // The trainer card.
+    int trainerId;
+    int playerGender;
+    boolean hasDex;
+    boolean nationalDex;
+    int dexSeen;
+    int dexCaught;
+    int badgeMask;
+    int momMoney;
+    int stars;
+    int hofTime;
     final List<Mon> party = new ArrayList<>();
 
     boolean inBattle;
@@ -88,6 +99,8 @@ final class BottomScreenState {
     int partyIndex = -1;
     int foeTeam;
     int foeTeamLeft;
+    /** Trainer battles: the opponents' Pokémon (species, level, HP). */
+    final List<Mon> foeParty = new ArrayList<>();
     Mon battleMon;
     Mon foe;
 
@@ -112,6 +125,16 @@ final class BottomScreenState {
                 state.badges = player.optInt("badges");
                 state.hours = player.optInt("hours");
                 state.minutes = player.optInt("minutes");
+                state.trainerId = player.optInt("id");
+                state.playerGender = player.optInt("gender");
+                state.hasDex = player.optBoolean("hasDex");
+                state.nationalDex = player.optBoolean("nationalDex");
+                state.dexSeen = player.optInt("dexSeen");
+                state.dexCaught = player.optInt("dexCaught");
+                state.badgeMask = player.optInt("badgeMask");
+                state.momMoney = player.optInt("momMoney");
+                state.stars = player.optInt("stars");
+                state.hofTime = player.optInt("hofTime");
             }
 
             JSONArray party = root.optJSONArray("party");
@@ -129,6 +152,10 @@ final class BottomScreenState {
                 state.partyIndex = battle.optInt("partyIndex", -1);
                 state.foeTeam = battle.optInt("foeTeam");
                 state.foeTeamLeft = battle.optInt("foeTeamLeft");
+                JSONArray foeParty = battle.optJSONArray("foeParty");
+                for (int i = 0; foeParty != null && i < foeParty.length(); i++) {
+                    state.foeParty.add(parseMon(foeParty.getJSONObject(i)));
+                }
                 JSONObject mon = battle.optJSONObject("mon");
                 if (mon != null) {
                     state.battleMon = parseMon(mon);
