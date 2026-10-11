@@ -189,9 +189,11 @@ int DualScreen_CopyJson(char *dest, int capacity);
 // publishes it with a "doc" and "param" so a reader can tell which it is.
 void DualScreen_SetWantedDoc(u32 kind, u32 param);
 int DualScreen_CopyDocJson(char *dest, int capacity);
-// The published document's picture as ARGB, if it has one. Returns the
-// number of pixels copied (0 if none or capacity is too small).
-int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height);
+// The published document's picture as ARGB, if it has one, and the document
+// kind, param and DocImageKey it was drawn for (it can be a step behind or
+// ahead of the JSON). Returns the number of pixels copied (0 if none or
+// capacity is too small).
+int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height, u32 *kind, u32 *param, u32 *key);
 // The type chart as JSON: type names and every attack-on-defence multiplier.
 // Reads constant data only.
 int DualScreen_TypeChartJson(char *dest, int capacity);

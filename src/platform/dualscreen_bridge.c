@@ -82,6 +82,9 @@ static char sPublishedDoc[DS_DOC_JSON_CAPACITY] = "{\"doc\":0}";
 static u32 sPublishedImage[DS_DOC_IMAGE_MAX];
 static u32 sPublishedImageWidth;
 static u32 sPublishedImageHeight;
+static u32 sPublishedImageKind;  // the document the picture was drawn for
+static u32 sPublishedImageParam;
+static u32 sPublishedImageKey;   // and its DocImageKey
 static u32 sWantedDoc;
 static u32 sWantedParam;
 static u16 sItemIconQueue[DS_ITEM_ICON_QUEUE];
@@ -1133,6 +1136,31 @@ static void GuideAreaToJson(struct JsonWriter *writer, bool32 *first, const char
     JsonPut(writer, "]}");
 }
 
+// The encounter table's time of day, as GetTimeOfDayForEncounters picks it,
+// but from the time the game last worked out (gTimeOfDay): GetTimeOfDay
+// would update the time of day, its flags and the field's lighting blend,
+// and the guide must leave the game as it was.
+static u32 GuideTimeOfDay(u16 headerId, u32 area)
+{
+    const struct WildEncounterTypes *types;
+    const struct WildPokemonInfo *info;
+    u32 time = gTimeOfDay < TIMES_OF_DAY_COUNT ? gTimeOfDay : TIME_OF_DAY_DEFAULT;
+
+    if (!OW_TIME_OF_DAY_ENCOUNTERS)
+        return TIME_OF_DAY_DEFAULT;
+    types = &gWildMonHeaders[headerId].encounterTypes[time];
+    switch (area)
+    {
+    case WILD_AREA_WATER:   info = types->waterMonsInfo; break;
+    case WILD_AREA_ROCKS:   info = types->rockSmashMonsInfo; break;
+    case WILD_AREA_FISHING: info = types->fishingMonsInfo; break;
+    default:                info = types->landMonsInfo; break;
+    }
+    if (info == NULL && !OW_TIME_OF_DAY_DISABLE_FALLBACK)
+        return OW_TIME_OF_DAY_FALLBACK;
+    return time;
+}
+
 static void GuideWildToJson(struct JsonWriter *writer)
 {
     static const char *const sTimeNames[] = { "MORNING", "DAY", "EVENING", "NIGHT" };
@@ -1151,26 +1179,26 @@ static void GuideWildToJson(struct JsonWriter *writer)
     JsonPut(writer, ",\"here\":[");
     if (headerId != HEADER_NONE)
     {
-        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_LAND);
+        time = GuideTimeOfDay(headerId, WILD_AREA_LAND);
         types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
         GuideAreaToJson(writer, &first, "GRASS AND CAVES", types->landMonsInfo, sLandSlotRates, 0, 12);
 
-        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_WATER);
+        time = GuideTimeOfDay(headerId, WILD_AREA_WATER);
         types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
         GuideAreaToJson(writer, &first, "SURFING", types->waterMonsInfo, sWaterSlotRates, 0, 5);
 
-        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_ROCKS);
+        time = GuideTimeOfDay(headerId, WILD_AREA_ROCKS);
         types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
         GuideAreaToJson(writer, &first, "ROCK SMASH", types->rockSmashMonsInfo, sWaterSlotRates, 0, 5);
 
-        time = GetTimeOfDayForEncounters(headerId, WILD_AREA_FISHING);
+        time = GuideTimeOfDay(headerId, WILD_AREA_FISHING);
         types = &gWildMonHeaders[headerId].encounterTypes[time < TIMES_OF_DAY_COUNT ? time : 0];
         GuideAreaToJson(writer, &first, "OLD ROD", types->fishingMonsInfo, sFishingSlotRates, 0, 2);
         GuideAreaToJson(writer, &first, "GOOD ROD", types->fishingMonsInfo, sFishingSlotRates, 2, 3);
         GuideAreaToJson(writer, &first, "SUPER ROD", types->fishingMonsInfo, sFishingSlotRates, 5, 5);
     }
     JsonPut(writer, "]");
-    time = GetTimeOfDay();
+    time = gTimeOfDay;
     JsonPut(writer, ",\"time\":\"%s\"", time < ARRAY_COUNT(sTimeNames) ? sTimeNames[time] : "");
 }
 
@@ -1942,6 +1970,9 @@ static void PublishDoc(u32 kind, u32 param, bool32 isNew)
     {
         sPublishedImageWidth = hasImage ? width : 0;
         sPublishedImageHeight = hasImage ? height : 0;
+        sPublishedImageKind = kind;
+        sPublishedImageParam = param;
+        sPublishedImageKey = imageKey;
         if (hasImage)
             memcpy(sPublishedImage, sWorkImage, width * height * sizeof(u32));
     }
@@ -1992,11 +2023,14 @@ int DualScreen_CopyDocJson(char *dest, int capacity)
     return length;
 }
 
-int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height)
+int DualScreen_CopyDocImage(u32 *argb, int capacity, u32 *width, u32 *height, u32 *kind, u32 *param, u32 *key)
 {
     int count;
 
     pthread_mutex_lock(&sLock);
+    *kind = sPublishedImageKind;
+    *param = sPublishedImageParam;
+    *key = sPublishedImageKey;
     count = sPublishedImageWidth * sPublishedImageHeight;
     if (count > capacity)
         count = 0;
@@ -2332,23 +2366,27 @@ JNIEXPORT jstring JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetDo
     return (*env)->NewStringUTF(env, sJniDoc);
 }
 
-// The picture as width, height, then the ARGB pixels; null if there is none.
+// The picture as width, height, the document kind, param and DocImageKey it
+// was drawn for, then the ARGB pixels; null if there is none.
 JNIEXPORT jintArray JNICALL Java_com_heartsoul_recomp_DualScreenBridge_nativeGetDocImage(JNIEnv *env, jclass clazz)
 {
-    static u32 sJniImage[2 + DS_DOC_IMAGE_MAX]; // only the UI thread calls this
-    u32 width, height;
+    static u32 sJniImage[5 + DS_DOC_IMAGE_MAX]; // only the UI thread calls this
+    u32 width, height, kind, param, key;
     int count;
     jintArray result;
 
     (void)clazz;
-    count = DualScreen_CopyDocImage(sJniImage + 2, DS_DOC_IMAGE_MAX, &width, &height);
+    count = DualScreen_CopyDocImage(sJniImage + 5, DS_DOC_IMAGE_MAX, &width, &height, &kind, &param, &key);
     if (count == 0)
         return NULL;
     sJniImage[0] = width;
     sJniImage[1] = height;
-    result = (*env)->NewIntArray(env, count + 2);
+    sJniImage[2] = kind;
+    sJniImage[3] = param;
+    sJniImage[4] = key;
+    result = (*env)->NewIntArray(env, count + 5);
     if (result != NULL)
-        (*env)->SetIntArrayRegion(env, result, 0, count + 2, (const jint *)sJniImage);
+        (*env)->SetIntArrayRegion(env, result, 0, count + 5, (const jint *)sJniImage);
     return result;
 }
 

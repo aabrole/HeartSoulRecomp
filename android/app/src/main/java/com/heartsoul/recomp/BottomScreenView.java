@@ -365,11 +365,13 @@ final class BottomScreenView extends View {
                     break;
                 case DualScreenBridge.DOC_DEX_ENTRY:
                     entryDoc = root;
-                    updateDocImage(kind + ":" + param);
+                    // DocImageKey in the bridge: kind << 24 | species.
+                    updateDocImage(kind, param, (kind << 24) | (param & 0xFFFFFF));
                     break;
                 default:
                     mapDoc = root;
-                    updateDocImage(kind + ":" + root.optInt("region"));
+                    // DocImageKey in the bridge: kind << 24 | region map type.
+                    updateDocImage(kind, param, (kind << 24) | root.optInt("region"));
                     break;
             }
         } catch (JSONException e) {
@@ -392,18 +394,28 @@ final class BottomScreenView extends View {
         }
     }
 
-    /** Fetches the document's picture when it is for something new. */
-    private void updateDocImage(String key) {
-        if (key.equals(docImageKey)) {
+    /**
+     * Fetches the document's picture when it is for something new. The
+     * picture says which document it was drawn for; one for another (a
+     * request overtaken by a newer one) is not kept, and the next poll asks
+     * again.
+     */
+    private void updateDocImage(int kind, int param, int key) {
+        String wanted = kind + ":" + param + ":" + key;
+        if (wanted.equals(docImageKey)) {
             return;
         }
         int[] image = DualScreenBridge.nativeGetDocImage();
-        if (image == null || image.length < 2 || image[0] <= 0 || image[1] <= 0
-                || image[0] * image[1] != image.length - 2) {
+        if (image == null || image.length < 5 || image[0] <= 0 || image[1] <= 0
+                || image[0] * image[1] != image.length - 5) {
             return;
         }
-        docImage = Bitmap.createBitmap(image, 2, image[0], image[0], image[1], Bitmap.Config.ARGB_8888);
-        docImageKey = key;
+        if (image[2] != kind || image[3] != param || image[4] != key) {
+            lastDocKey = ""; // look again at the next poll
+            return;
+        }
+        docImage = Bitmap.createBitmap(image, 5, image[0], image[0], image[1], Bitmap.Config.ARGB_8888);
+        docImageKey = wanted;
     }
 
     private TypeChart typeChart() {
@@ -2137,7 +2149,7 @@ final class BottomScreenView extends View {
         int split = left + (right - left) * 42 / 100;
         int y = top;
         int pictureScale = 64 * s <= (bottom - top) / 2 ? s : Math.max(1, s / 2);
-        if (docImage != null && docImageKey.equals(DualScreenBridge.DOC_DEX_ENTRY + ":" + dexSpecies)) {
+        if (docImage != null && docImageKey.startsWith(DualScreenBridge.DOC_DEX_ENTRY + ":" + dexSpecies + ":")) {
             drawBitmap(canvas, docImage, (left + split - 64 * pictureScale) / 2, y, pictureScale, false);
         }
         y += 64 * pictureScale + s;
