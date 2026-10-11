@@ -14,9 +14,21 @@ final class BottomScreenState {
     static final int MENU_MOVE = 2;
     static final int MENU_TARGET = 3;
 
+    /** Move categories, as the game numbers them. */
+    static final int CATEGORY_PHYSICAL = 0;
+    static final int CATEGORY_SPECIAL = 1;
+    static final int CATEGORY_STATUS = 2;
+
+    /** Stats in the summary screen's order. */
+    static final int STAT_COUNT = 6;
+
     static final class Move {
         String name = "";
         String type = "";
+        int typeId;
+        int category = CATEGORY_STATUS;
+        int power;
+        int accuracy;
         int pp;
         int maxPp;
     }
@@ -27,10 +39,29 @@ final class BottomScreenState {
         String status = "";
         String item = "";
         boolean egg;
+        int speciesId;
+        int iconSpecies;
+        int personality;
+        int[] types = new int[0];
         int level;
         int hp;
         int maxHp;
         final List<Move> moves = new ArrayList<>();
+
+        /** Summary details, party mons only. */
+        boolean hasDetails;
+        boolean shiny;
+        int gender = 0xFF;
+        int friendship;
+        String ability = "";
+        String nature = "";
+        int natureUp = -1;
+        int natureDown = -1;
+        int[] stats = new int[STAT_COUNT];
+        int[] ivs = new int[STAT_COUNT];
+        int[] evs = new int[STAT_COUNT];
+        int exp;
+        int expNext;
 
         String displayName() {
             return nick.isEmpty() ? species : nick;
@@ -39,6 +70,8 @@ final class BottomScreenState {
 
     boolean inGame;
     boolean overworld;
+    boolean fastForward;
+    int frame;
     String playerName = "";
     String mapName = "";
     int money;
@@ -53,6 +86,8 @@ final class BottomScreenState {
     int actionCursor;
     int moveCursor;
     int partyIndex = -1;
+    int foeTeam;
+    int foeTeamLeft;
     Mon battleMon;
     Mon foe;
 
@@ -66,6 +101,8 @@ final class BottomScreenState {
             JSONObject root = new JSONObject(json);
             state.inGame = root.optBoolean("inGame");
             state.overworld = root.optBoolean("overworld");
+            state.fastForward = root.optBoolean("ff");
+            state.frame = root.optInt("frame");
 
             JSONObject player = root.optJSONObject("player");
             if (player != null) {
@@ -90,6 +127,8 @@ final class BottomScreenState {
                 state.actionCursor = battle.optInt("actionCursor");
                 state.moveCursor = battle.optInt("moveCursor");
                 state.partyIndex = battle.optInt("partyIndex", -1);
+                state.foeTeam = battle.optInt("foeTeam");
+                state.foeTeamLeft = battle.optInt("foeTeamLeft");
                 JSONObject mon = battle.optJSONObject("mon");
                 if (mon != null) {
                     state.battleMon = parseMon(mon);
@@ -124,6 +163,25 @@ final class BottomScreenState {
         mon.level = object.optInt("lv");
         mon.hp = object.optInt("hp");
         mon.maxHp = object.optInt("maxHp");
+        mon.speciesId = object.optInt("speciesId");
+        mon.iconSpecies = object.optInt("iconSpecies", mon.speciesId);
+        mon.personality = (int) object.optLong("personality");
+        mon.types = intArray(object.optJSONArray("types"), 0);
+        if (object.has("stats")) {
+            mon.hasDetails = true;
+            mon.shiny = object.optBoolean("shiny");
+            mon.gender = object.optInt("gender", 0xFF);
+            mon.friendship = object.optInt("friendship");
+            mon.ability = object.optString("ability");
+            mon.nature = object.optString("nature");
+            mon.natureUp = object.optInt("natureUp", -1);
+            mon.natureDown = object.optInt("natureDown", -1);
+            mon.stats = intArray(object.optJSONArray("stats"), STAT_COUNT);
+            mon.ivs = intArray(object.optJSONArray("ivs"), STAT_COUNT);
+            mon.evs = intArray(object.optJSONArray("evs"), STAT_COUNT);
+            mon.exp = object.optInt("exp");
+            mon.expNext = object.optInt("expNext");
+        }
         JSONArray moves = object.optJSONArray("moves");
         for (int i = 0; moves != null && i < moves.length(); i++) {
             JSONObject moveObject = moves.optJSONObject(i);
@@ -133,10 +191,24 @@ final class BottomScreenState {
             Move move = new Move();
             move.name = moveObject.optString("name");
             move.type = moveObject.optString("type");
+            move.typeId = moveObject.optInt("typeId");
+            move.category = moveObject.optInt("cat", CATEGORY_STATUS);
+            move.power = moveObject.optInt("power");
+            move.accuracy = moveObject.optInt("acc");
             move.pp = moveObject.optInt("pp");
             move.maxPp = moveObject.optInt("maxPp");
             mon.moves.add(move);
         }
         return mon;
+    }
+
+    /** The array's numbers; at least minLength of them, padded with zeros. */
+    static int[] intArray(JSONArray array, int minLength) {
+        int length = array != null ? array.length() : 0;
+        int[] result = new int[Math.max(length, minLength)];
+        for (int i = 0; i < length; i++) {
+            result[i] = array.optInt(i);
+        }
+        return result;
     }
 }

@@ -3,7 +3,6 @@ package com.heartsoul.recomp;
 import android.app.ActivityOptions;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Handler;
@@ -13,10 +12,6 @@ import android.view.Display;
 
 import org.libsdl.app.SDLActivity;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Runs the native game. SDL loads libmain.so and calls its SDL_main. On a
@@ -93,7 +88,7 @@ public class HeartSoulActivity extends SDLActivity {
             }
             if (sink != null && !bridgeBroken) {
                 try {
-                    String json = previewJson();
+                    String json = DebugFiles.text(HeartSoulActivity.this, "bottom_screen_preview.json");
                     if (json == null) {
                         json = DualScreenBridge.nativeGetStateJson();
                     }
@@ -187,7 +182,7 @@ public class HeartSoulActivity extends SDLActivity {
         if (target == null) {
             return; // one screen
         }
-        if (target.getDisplayId() != presentationRefusedDisplay && !debugFlag("force_bottom_activity")) {
+        if (target.getDisplayId() != presentationRefusedDisplay && !DebugFiles.flag(this, "force_bottom_activity")) {
             try {
                 BottomScreenPresentation created = new BottomScreenPresentation(this, target);
                 created.show();
@@ -229,52 +224,6 @@ public class HeartSoulActivity extends SDLActivity {
             startActivity(intent);
         } catch (RuntimeException e) {
             Log.w(TAG, "could not take focus back from the bottom screen", e);
-        }
-    }
-
-    /**
-     * Debug builds only: true if the app's files folder holds a file of that
-     * name. force_bottom_activity uses BottomScreenActivity even where a
-     * Presentation would work, to test that path on a device or emulator
-     * whose second display takes one.
-     */
-    private boolean debugFlag(String name) {
-        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
-            return false;
-        }
-        File dir = getExternalFilesDir(null);
-        return dir != null && new File(dir, name).isFile();
-    }
-
-    /**
-     * Debug builds only: if the app's files folder holds
-     * bottom_screen_preview.json, the bottom screen shows that state instead
-     * of the game's. It lets a layout be checked on the device for battles
-     * and parties that are not in front of you, with adb push and screencap
-     * and no input. Delete the file to go back to the live state.
-     */
-    private String previewJson() {
-        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
-            return null;
-        }
-        File dir = getExternalFilesDir(null);
-        File file = dir != null ? new File(dir, "bottom_screen_preview.json") : null;
-        if (file == null || !file.isFile() || file.length() > 64 * 1024) {
-            return null;
-        }
-        try (FileInputStream in = new FileInputStream(file)) {
-            byte[] bytes = new byte[(int) file.length()];
-            int read = 0;
-            while (read < bytes.length) {
-                int n = in.read(bytes, read, bytes.length - read);
-                if (n < 0) {
-                    break;
-                }
-                read += n;
-            }
-            return new String(bytes, 0, read, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            return null;
         }
     }
 

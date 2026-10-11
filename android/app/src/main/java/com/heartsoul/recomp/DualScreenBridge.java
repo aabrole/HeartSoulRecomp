@@ -33,4 +33,24 @@ public final class DualScreenBridge {
      * START=8 RIGHT=16 LEFT=32 UP=64 DOWN=128 R=256 L=512.
      */
     public static native void nativeInjectKeys(int keys, int frames);
+
+    /**
+     * The bag as JSON. The game publishes it only while it is wanted, every
+     * half second; set it wanted while the bag is on screen.
+     */
+    public static native String nativeGetBagJson();
+
+    public static native void nativeSetBagWanted(boolean wanted);
+
+    /** The type chart as JSON (see TypeChart). */
+    public static native String nativeGetTypeChartJson();
+
+    /** A Pokémon's menu icon as 32x32 ARGB pixels, or null. */
+    public static native int[] nativeGetMonIcon(int species, int personality, boolean egg);
+
+    /**
+     * An item's icon as 24x24 ARGB pixels, or null while the game has not
+     * decoded it yet (it starts on the first ask).
+     */
+    public static native int[] nativeGetItemIcon(int item);
 }
