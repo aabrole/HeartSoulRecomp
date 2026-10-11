@@ -64,6 +64,9 @@ double lastGameTime = 0;
 double curGameTime = 0;
 double fixedTimestep = 1.0 / 60.0; // 16.666667ms
 double timeScale = 1.0;
+// HNS_FAST_FORWARD=toggle: a pull of the right trigger turns fast forward on,
+// the next pull turns it off. Otherwise (hold) it runs while the trigger is in.
+static bool sFastForwardToggle;
 struct SiiRtcInfo internalClock;
 
 static FILE *sSaveFile = NULL;
@@ -611,6 +614,7 @@ int main(int argc, char **argv)
     SDL_RenderClear(sdlRenderer);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     SetScaleMode(getenv("HNS_SCALE"));
+    sFastForwardToggle = getenv("HNS_FAST_FORWARD") != NULL && strcmp(getenv("HNS_FAST_FORWARD"), "toggle") == 0;
 
     // Created at the largest geometry. Only the top-left gRenderWidth x
     // gRenderHeight is uploaded and drawn, so widescreen and the tall screen
@@ -901,6 +905,9 @@ case KEY_##key:  keys |= key; break;
 // calls A is GBA A. On the AYN Thor that is the right face button, as on a GBA.
 static u16 sPadKeys;
 static bool sPadFastForward;
+// Whether the right trigger is in. It counts as released only below a lower
+// threshold, so a trigger resting near the line does not toggle twice.
+static bool sPadTriggerIn;
 
 static u16 PadKeyFromButton(Uint8 button)
 {
@@ -921,6 +928,7 @@ static u16 PadKeyFromButton(Uint8 button)
 }
 
 #define PAD_STICK_THRESHOLD 16000
+#define PAD_TRIGGER_RELEASE 8000
 
 static u16 PadStickKeys(void)
 {
@@ -967,8 +975,23 @@ void ProcessEvents(void)
         case SDL_CONTROLLERAXISMOTION:
             if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
             {
-                // Hold the right trigger to fast forward.
-                sPadFastForward = event.caxis.value > PAD_STICK_THRESHOLD;
+                // The right trigger fast forwards: while held, or on and
+                // off with each pull (HNS_FAST_FORWARD=toggle).
+                bool in = sPadTriggerIn ? event.caxis.value > PAD_TRIGGER_RELEASE
+                                        : event.caxis.value > PAD_STICK_THRESHOLD;
+
+                if (in == sPadTriggerIn)
+                    break;
+                sPadTriggerIn = in;
+                if (sFastForwardToggle)
+                {
+                    if (in)
+                        sPadFastForward = !sPadFastForward;
+                }
+                else
+                {
+                    sPadFastForward = in;
+                }
                 if (!speedUp)
                     timeScale = sPadFastForward ? 5.0 : 1.0;
             }

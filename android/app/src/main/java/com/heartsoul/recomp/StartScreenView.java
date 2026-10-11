@@ -26,7 +26,9 @@ final class StartScreenView extends View {
 
     // Design size in GBA pixels that the scale is chosen from.
     private static final int DESIGN_WIDTH = 256;
-    private static final int DESIGN_HEIGHT = 192;
+    // 210 high holds the four option rows with the margins; the Thor still
+    // draws at 5x and a 640x480 screen at 2x.
+    private static final int DESIGN_HEIGHT = 210;
     // The panels get no wider than this, in GBA pixels.
     private static final int MAX_CONTENT_WIDTH = 320;
 
@@ -38,8 +40,10 @@ final class StartScreenView extends View {
     private static final int ROW_PICTURE = 0;
     private static final int ROW_SCALE = 1;
     private static final int ROW_BOTTOM = 2;
-    private static final int ROW_START = 3;
-    private static final int ROW_COUNT = 4;
+    private static final int ROW_FAST_FORWARD = 3;
+    private static final int ROW_START = 4;
+    private static final int ROW_COUNT = 5;
+    private static final int OPTION_ROWS = 4;
 
     // The bottom screen's palette.
     private static final int COLOR_BACKGROUND = 0xFF2E5070;
@@ -142,7 +146,7 @@ final class StartScreenView extends View {
         int smallLine = gba.small[0].boxHeight * s;
         int titleHeight = 2 * mainLine + 2 * (PAD_Y + 1) * s;
         int optionRow = mainLine + 2 * PAD_Y * s;
-        int optionsHeight = 3 * optionRow + 2 * (PAD_Y + 1) * s;
+        int optionsHeight = OPTION_ROWS * optionRow + 2 * (PAD_Y + 1) * s;
         int infoHeight = 2 * smallLine + 3 * PAD_Y * s + 2 * s;
         int startHeight = mainLine + 2 * (PAD_Y + 1) * s + 2 * s;
         int footerHeight = smallLine;
@@ -187,17 +191,18 @@ final class StartScreenView extends View {
         int inLeft = left + (PAD_X + 1) * s;
         int inRight = right - (PAD_X + 1) * s;
         int y = top + (PAD_Y + 1) * s;
-        String[] labels = { "PICTURE", "SCALING", "BOTTOM SCREEN" };
+        String[] labels = { "PICTURE", "SCALING", "BOTTOM SCREEN", "FAST FORWARD" };
         String[] values = {
             PICTURE_NAMES[settings.picture],
             SCALE_NAMES[settings.scale],
             settings.bottomScreen ? "ON" : "OFF",
+            settings.fastForwardToggle ? "TOGGLE" : "HOLD",
         };
         // Labels share a size, and so do the values, so the rows line up.
         int labelRoom = (inRight - inLeft) * 45 / 100;
         int labelScale = GbaText.groupScale(gba.main, labels, labelRoom, optionRow, s, s, Math.max(1, s - 1));
         int cursorWidth = gba.main[0].width(String.valueOf(CURSOR)) * s + 2 * s;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < OPTION_ROWS; i++) {
             boolean selected = row == i;
             rowRects[i].set(left, y, right, y + optionRow);
             if (selected) {
@@ -353,6 +358,11 @@ final class StartScreenView extends View {
                     first = "Leaves the second screen to other apps.";
                 }
                 break;
+            case ROW_FAST_FORWARD:
+                first = settings.fastForwardToggle
+                        ? "R2 turns fast forward on, R2 again turns it off."
+                        : "Fast forward while R2 is held down.";
+                break;
             default:
                 first = "Changes apply when the game starts.";
                 break;
@@ -426,6 +436,9 @@ final class StartScreenView extends View {
                 break;
             case ROW_BOTTOM:
                 settings.bottomScreen = !settings.bottomScreen;
+                break;
+            case ROW_FAST_FORWARD:
+                settings.fastForwardToggle = !settings.fastForwardToggle;
                 break;
             default:
                 return;

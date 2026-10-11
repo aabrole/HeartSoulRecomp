@@ -9,7 +9,7 @@ import android.util.Log;
 /**
  * The choices made on the start screen, kept between launches, and how they
  * reach the game: as environment variables that src/platform/sdl2.c reads
- * when the game starts (HNS_WIDESCREEN, HNS_TALL, HNS_SCALE). They are set in
+ * when the game starts (HNS_WIDESCREEN, HNS_TALL, HNS_SCALE, HNS_FAST_FORWARD). They are set in
  * this process before SDL starts the game, so a change applies from the next
  * start of the game.
  */
@@ -32,10 +32,13 @@ final class Settings {
     private static final String KEY_PICTURE = "picture";
     private static final String KEY_SCALE = "scale";
     private static final String KEY_BOTTOM_SCREEN = "bottom_screen";
+    private static final String KEY_FAST_FORWARD_TOGGLE = "fast_forward_toggle";
 
     int picture;
     int scale;
     boolean bottomScreen;
+    /** The fast forward button turns it on and off, instead of working while held. */
+    boolean fastForwardToggle;
 
     /** Game pixels across and down for a picture choice. */
     static int frameWidth(int picture) {
@@ -66,6 +69,7 @@ final class Settings {
                 PICTURE_COUNT, PICTURE_WIDESCREEN);
         settings.scale = clamp(prefs.getInt(KEY_SCALE, SCALE_FIT), SCALE_COUNT, SCALE_FIT);
         settings.bottomScreen = prefs.getBoolean(KEY_BOTTOM_SCREEN, true);
+        settings.fastForwardToggle = prefs.getBoolean(KEY_FAST_FORWARD_TOGGLE, true);
         return settings;
     }
 
@@ -74,6 +78,7 @@ final class Settings {
                 .putInt(KEY_PICTURE, picture)
                 .putInt(KEY_SCALE, scale)
                 .putBoolean(KEY_BOTTOM_SCREEN, bottomScreen)
+                .putBoolean(KEY_FAST_FORWARD_TOGGLE, fastForwardToggle)
                 .apply();
     }
 
@@ -82,6 +87,7 @@ final class Settings {
         setenv("HNS_WIDESCREEN", picture == PICTURE_ORIGINAL ? "0" : "1");
         setenv("HNS_TALL", picture == PICTURE_ZOOMED_OUT ? "1" : "0");
         setenv("HNS_SCALE", scale == SCALE_INTEGER ? "integer" : scale == SCALE_STRETCH ? "stretch" : "fit");
+        setenv("HNS_FAST_FORWARD", fastForwardToggle ? "toggle" : "hold");
     }
 
     private static void setenv(String name, String value) {
